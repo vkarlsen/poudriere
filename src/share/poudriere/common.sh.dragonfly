@@ -114,9 +114,6 @@ jail_start() {
 	was_a_bulk_run && stash_packages
 
 	do_portbuild_mounts ${MASTERMNT} ${name} ${ptname} ${setname}
-	if [ ! -f ${MASTERMNT}/usr/ports/Mk/bsd.stage.mk ]; then
-		echo "NO_STAGE=yes" >> ${MASTERMNT}/etc/make.conf
-	fi
 	cp -a ${MASTERMNT}/etc ${MASTERMNT}/etc2
 	cp -a ${MASTERMNT}/var ${MASTERMNT}/var2
 
