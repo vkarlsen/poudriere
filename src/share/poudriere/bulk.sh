@@ -36,6 +36,7 @@ Parameters:
     [ports...]  -- List of ports to build on the command line
 
 Options:
+    -1          -- Override poudriere.conf to DISABLE_MAKE_JOBS on all ports
     -B name     -- What buildname to use (must be unique, defaults to
                    YYYY-MM-DD_HH:MM:SS)
     -c          -- Clean all the previously built binary packages
@@ -77,8 +78,10 @@ BUILD_REPO=0
 
 [ $# -eq 0 ] && usage
 
-while getopts "B:f:j:J:CcnNp:RFtrTsvwz:a" FLAG; do
+while getopts "B:f:j:J:1CcnNp:RFtrTsvwz:a" FLAG; do
 	case "${FLAG}" in
+		1)	JOBS_LIMIT=1
+			;;
 		B)
 			BUILDNAME="${OPTARG}"
 			;;
