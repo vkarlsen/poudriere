@@ -27,10 +27,11 @@
 set -e
 
 usage() {
-	echo "poudriere combo [options]
+	echo "poudriere combo [options] [one parameter]
 
 Parameters:
     -C          -- Cleanup jail mounts (contingency cleanup)
+    -L days     -- Delete logs older than specified days
     -d          -- Perform dependency check on entire port tree
     -i          -- Show jail information
     -x          -- List all failed ports in last or ongoing build
@@ -54,10 +55,14 @@ PTNAME="default"
 
 [ $# -eq 0 ] && usage
 
-while getopts "j:p:Cdix" FLAG; do
+while getopts "j:p:L:Cdix" FLAG; do
 	case "${FLAG}" in
 		C)
 			DISMOUNT=1
+			;;
+		L)
+			RMLOGS=1
+			LOG_DAYS=${OPTARG}
 			;;
 		j)
 			JAILNAME=${OPTARG}
@@ -168,22 +173,49 @@ solo_dep_check() {
 	cleanup
 }
 
-case "${INFO}${DISMOUNT}${LISTFAIL}${DEPCHECK}" in
-	1000)
+delete_old_logs() {
+	[ $# -ne 0 ] && eargs
+	local mnt
+	local BULK_LOG_PATH=$(log_path)/..
+	jail_exists ${JAILNAME} || err 1 "No such jail: ${JAILNAME}"
+	porttree_exists ${PTNAME} || err 1 "No such tree: ${PTNAME}"
+	case ${LOG_DAYS} in
+	  ''|*[!0-9]*) err 1 "<days> is not an integer: ${LOG_DAYS}" ;;
+	esac
+
+	(cd ${BULK_LOG_PATH} && \
+	 find -s * -name "2*" -type d -depth 0 -maxdepth 0 -mtime +${LOG_DAYS}d | \
+	 xargs rm -rf)
+	(cd ${BULK_LOG_PATH} && \
+	 find -s latest-per-pkg -name "*.log" -type f -mtime +${LOG_DAYS}d -delete)
+	(cd ${BULK_LOG_PATH} && \
+	 find -s ../latest-per-pkg -name "*.log" -type f -mtime +${LOG_DAYS}d -delete)
+	(cd ${BULK_LOG_PATH} && \
+	 find -s ../latest-per-pkg -type d -empty | xargs rmdir)
+	(cd ${BULK_LOG_PATH} && \
+	 find -s ../latest-per-pkg -type d -empty | xargs rmdir)
+}
+
+case "${INFO}${DISMOUNT}${LISTFAIL}${DEPCHECK}${RMLOGS}" in
+	10000)
 		test -z ${JAILNAME} && usage
 		info_jail
 		;;
-	0100)
+	01000)
 		test -z ${JAILNAME} && usage
 		jail_dismount
 		;;
-	0010)
+	00100)
 		test -z ${JAILNAME} && usage
 		list_failures
 		;;
-	0001)
+	00010)
 		test -z ${JAILNAME} && usage
 		solo_dep_check
+		;;
+	00001)
+		test -z ${JAILNAME} && usage
+		delete_old_logs
 		;;
 	*)
 		usage
