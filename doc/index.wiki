@@ -45,9 +45,10 @@ then edit it:
 
 The comments inside the configuration file should be sufficient.
 
-<h2>Examples</h2>
+<h2>Documentation</h2>
 
-See poudriere(8).
+  *  See [./poudriere.8.wiki|poudriere(8)].
+  *  [./relnotes.wiki|Release notes].
 
 <h1>How-to...</h1>
 
@@ -76,6 +77,11 @@ and clone the repo:
 # fossil open ../poudriere.fossil</verbatim>
 
 There is also a git mirror available at https://github.com/bdrewery/poudriere
+
+<h2>Known Issues</h2>
+
+  *  [/reportlist|Tickets]
+  *  [./todo.wiki|TODO]
 
 <h2>Contributing</h2>
 

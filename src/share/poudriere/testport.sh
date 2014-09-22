@@ -2,7 +2,7 @@
 # 
 # Copyright (c) 2010-2013 Baptiste Daroussin <bapt@FreeBSD.org>
 # Copyright (c) 2010-2011 Julien Laffaye <jlaffaye@FreeBSD.org>
-# Copyright (c) 2012-2013 Bryan Drewery <bdrewery@FreeBSD.org>
+# Copyright (c) 2012-2014 Bryan Drewery <bdrewery@FreeBSD.org>
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -37,20 +37,26 @@ Parameters:
 
 Options:
     -c          -- Run make config for the given port
-    -J n[:p]    -- Run n jobs in parallel for dependencies, and optionally
-                   run a different number of jobs in parallel while preparing
-                   the build. (Defaults to the number of CPUs)
     -i          -- Interactive mode. Enter jail for interactive testing and
                    automatically cleanup when done.
     -I          -- Advanced Interactive mode. Leaves everything mounted, but
                    user must chroot to and cleanup the jail manually.
-    -n          -- No custom prefix
+    -J n[:p]    -- Run n jobs in parallel for dependencies, and optionally
+                   run a different number of jobs in parallel while preparing
+                   the build. (Defaults to the number of CPUs)
+    -k          -- Don't consider failures as fatal; find all failures.
     -N          -- Do not build package repository or INDEX when build
                    of dependencies completed
     -p tree     -- Specify the path to the portstree
-    -s          -- Skip sanity checks
+    -P          -- Use custom prefix
+    -s          -- Skip incremental rebuild and sanity checks
+    -S          -- Don't recursively rebuild packages affected by other
+                   packages requiring incremental rebuild. This can result
+                   in broken packages if the ones updated do not retain
+                   a stable ABI.
     -v          -- Be verbose; show more information. Use twice to enable
                    debug output
+    -w          -- Save WRKDIR on failed builds
     -z set      -- Specify which SET to use
 EOF
 	exit 1
@@ -60,14 +66,15 @@ SCRIPTPATH=`realpath $0`
 SCRIPTPREFIX=`dirname ${SCRIPTPATH}`
 CONFIGSTR=0
 . ${SCRIPTPREFIX}/common.sh
-NOPREFIX=0
+NOPREFIX=1
 SETNAME=""
 SKIPSANITY=0
+SKIP_RECURSIVE_REBUILD=0
 INTERACTIVE_MODE=0
 PTNAME="default"
 BUILD_REPO=1
 
-while getopts "o:cnj:J:iINp:svz:" FLAG; do
+while getopts "o:cniIj:J:kNp:PsSvwz:" FLAG; do
 	case "${FLAG}" in
 		c)
 			CONFIGSTR=1
@@ -76,7 +83,7 @@ while getopts "o:cnj:J:iINp:svz:" FLAG; do
 			ORIGIN=${OPTARG}
 			;;
 		n)
-			NOPREFIX=1
+			# Backwards-compat with NOPREFIX=1
 			;;
 		j)
 			jail_exists ${OPTARG} || err 1 "No such jail: ${OPTARG}"
@@ -85,6 +92,9 @@ while getopts "o:cnj:J:iINp:svz:" FLAG; do
 		J)
 			BUILD_PARALLEL_JOBS=${OPTARG%:*}
 			PREPARE_PARALLEL_JOBS=${OPTARG#*:}
+			;;
+		k)
+			PORTTESTING_FATAL=no
 			;;
 		i)
 			INTERACTIVE_MODE=1
@@ -100,8 +110,17 @@ while getopts "o:cnj:J:iINp:svz:" FLAG; do
 			    err 2 "No such ports tree ${OPTARG}"
 			PTNAME=${OPTARG}
 			;;
+		P)
+			NOPREFIX=0
+			;;
 		s)
 			SKIPSANITY=1
+			;;
+		S)
+			SKIP_RECURSIVE_REBUILD=1
+			;;
+		w)
+			SAVE_WRKDIR=1
 			;;
 		z)
 			[ -n "${OPTARG}" ] || err 1 "Empty set name"
@@ -119,6 +138,12 @@ done
 [ -z ${ORIGIN} ] && usage
 
 [ -z "${JAILNAME}" ] && err 1 "Don't know on which jail to run please specify -j"
+_pget portsdir ${PTNAME} mnt
+[ -d "${portsdir}/${ORIGIN}" ] || err 1 "Nonexistent origin ${COLOR_PORT}${ORIGIN}${COLOR_RESET}"
+
+maybe_run_queued "$@"
+
+shift $((OPTIND-1))
 
 check_jobs
 : ${BUILD_PARALLEL_JOBS:=${PARALLEL_JOBS}}
@@ -126,11 +151,12 @@ check_jobs
 PARALLEL_JOBS=${PREPARE_PARALLEL_JOBS}
 
 MASTERNAME=${JAILNAME}-${PTNAME}${SETNAME:+-${SETNAME}}
-MASTERMNT=${POUDRIERE_DATA}/build/${MASTERNAME}/ref
+_mastermnt MASTERMNT
 export MASTERNAME
 export MASTERMNT
 export POUDRIERE_BUILD_TYPE=bulk
 
+#madvise_protect $$
 jail_start ${JAILNAME} ${PTNAME} ${SETNAME}
 
 [ $CONFIGSTR -eq 1 ] && injail env TERM=${SAVED_TERM} make -C /usr/ports/${ORIGIN} config
@@ -139,7 +165,7 @@ LISTPORTS=$(list_deps ${ORIGIN} )
 prepare_ports
 markfs prepkg ${MASTERMNT}
 
-log=$(log_path)
+_log_path log
 
 run_hook testport_started ORIGIN=${ORIGIN}
 
@@ -148,11 +174,15 @@ if [ $(bget stats_failed) -gt 0 ] || [ $(bget stats_skipped) -gt 0 ]; then
 	failed=$(bget ports.failed | awk '{print $1 ":" $3 }' | xargs echo)
 	skipped=$(bget ports.skipped | awk '{print $1}' | sort -u | xargs echo)
 
-	cleanup
+	msg_error "Depends failed to build"
+	COLOR_ARROW="${COLOR_FAIL}" \
+	    msg "${COLOR_FAIL}Failed ports: ${COLOR_PORT}${failed}"
+	[ -n "${skipped}" ] && COLOR_ARROW="${COLOR_SKIP}" \
+	    msg "${COLOR_SKIP}Skipped ports: ${COLOR_PORT}${skipped}"
 
-	msg "Depends failed to build"
-	msg "Failed ports: ${failed}"
-	[ -n "${skipped}" ] && 	msg "Skipped ports: ${skipped}"
+	bset_job_status "failed/depends" "${ORIGIN}"
+	cleanup
+	set +e
 
 	run_hook testport_bulk_failed \
 		BULK_PORTS_FAILED=${failed} \
@@ -170,7 +200,7 @@ commit_packages
 
 PARALLEL_JOBS=${BUILD_PARALLEL_JOBS}
 
-bset status "testing:"
+bset_job_status "testing" "${ORIGIN}"
 
 PKGNAME=`injail make -C /usr/ports/${ORIGIN} -VPKGNAME`
 LOCALBASE=`injail make -C /usr/ports/${ORIGIN} -VLOCALBASE`
@@ -196,23 +226,33 @@ fi
 
 PKGENV="PACKAGES=/tmp/pkgs PKGREPOSITORY=/tmp/pkgs"
 injail install -d -o ${PORTBUILD_USER} /tmp/pkgs
-[ ${PKGNG} -eq 0 ] && injail mkdir -p ${PREFIX}
 PORTTESTING=yes
 export TRYBROKEN=yes
-export DEVELOPER_MODE=yes
+export NO_WARNING_PKG_INSTALL_EOL=yes
+# Disable waits unless running in a tty interactively
+if ! [ -t 1 ]; then
+	export WARNING_WAIT=0
+	export DEV_WARNING_WAIT=0
+fi
 sed -i '' '/DISABLE_MAKE_JOBS=poudriere/d' ${MASTERMNT}/etc/make.conf
-log_start
+log_start 1
 buildlog_start /usr/ports/${ORIGIN}
 ret=0
+
+# Don't show timestamps in msg() which goes to logs, only job_msg()
+# which goes to master
+NO_ELAPSED_IN_MSG=1
 build_port /usr/ports/${ORIGIN} || ret=$?
+unset NO_ELAPSED_IN_MSG
+
 if [ ${ret} -ne 0 ]; then
 	if [ ${ret} -eq 2 ]; then
-		failed_phase=$(${SCRIPTPREFIX}/processonelog2.sh \
+		failed_phase=$(awk -f ${AWKPREFIX}/processonelog2.awk \
 			${log}/logs/${PKGNAME}.log \
 			2> /dev/null)
 	else
 		failed_status=$(bget status)
-		failed_phase=${failed_status%:*}
+		failed_phase=${failed_status%%:*}
 	fi
 
 	save_wrkdir ${MASTERMNT} "${PKGNAME}" "/usr/ports/${ORIGIN}" "${failed_phase}" || :
@@ -223,14 +263,19 @@ if [ ${ret} -ne 0 ]; then
 		PHASE=${failed_phase}
 
 	ln -s ../${PKGNAME}.log ${log}/logs/errors/${PKGNAME}.log
-	errortype=$(${SCRIPTPREFIX}/processonelog.sh \
+	errortype=$(/bin/sh ${SCRIPTPREFIX}/processonelog.sh \
 		${log}/logs/errors/${PKGNAME}.log \
 		2> /dev/null)
 	badd ports.failed "${ORIGIN} ${PKGNAME} ${failed_phase} ${errortype}"
+	update_stats || :
 
 	if [ ${INTERACTIVE_MODE} -eq 0 ]; then
-		stop_build /usr/ports/${ORIGIN}
-		err 1 "Build failed in phase: ${failed_phase}"
+		stop_build /usr/ports/${ORIGIN} 1
+		bset_job_status "failed/${failed_phase}" "${ORIGIN}"
+		msg_error "Build failed in phase: ${COLOR_PHASE}${failed_phase}${COLOR_RESET}"
+		cleanup
+		set +e
+		exit 1
 	fi
 else
 	badd ports.built "${ORIGIN} ${PKGNAME}"
@@ -238,73 +283,82 @@ else
 		save_wrkdir ${MASTERMNT} "${PKGNAME}" "/usr/ports/${ORIGIN}" \
 		    "noneed" || :
 	fi
+	update_stats || :
 	build_result=1
 	run_hook testport_test_success ORIGIN=${ORIGIN}
 fi
 
-if [ -f ${MASTERMNT}/tmp/pkgs/${PKGNAME}.${PKG_EXT} ]; then
-	msg "Installing from package"
-	injail ${PKG_ADD} /tmp/pkgs/${PKGNAME}.${PKG_EXT} || :
-fi
-
-# Interactive test mode
-if [ $INTERACTIVE_MODE -gt 0 ]; then
-	print_phase_header "Interactive"
-
+if [ ${INTERACTIVE_MODE} -gt 0 ]; then
+    if [ ${BSDPLATFORM} = "freebsd" ]; then
 	# Stop the tee process and stop redirecting stdout so that
 	# the terminal can be properly used in the jail
 	log_stop
 
-	msg "Installing run-depends"
-	# Install run-depends since this is an interactive test
-	echo "PACKAGES=/packages" >> ${MASTERMNT}/etc/make.conf
-	echo "127.0.0.1 ${MASTERNAME}" >> ${MASTERMNT}/etc/hosts
-	injail make -C /usr/ports/${ORIGIN} run-depends ||
-		msg "Failed to install RUN_DEPENDS"
+	# Update LISTPORTS so enter_interactive only installs the built port
+	# via listed_ports()
+	LISTPORTS="${ORIGIN}"
+	enter_interactive
 
-	if [ ${BSDPLATFORM} = "freebsd" ]; then
-		# Enable networking
-		jstop
-		jstart 1
+	if [ ${INTERACTIVE_MODE} -eq 1 ]; then
+		# Since failure was skipped earlier, fail now after leaving
+		# jail.
+		if [ -n "${failed_phase}" ]; then
+			bset_job_status "failed/${failed_phase}" "${ORIGIN}"
+			msg_error "Build failed in phase: ${COLOR_PHASE}${failed_phase}${COLOR_RESET}"
+			cleanup
+			set +e
+			exit 1
+		fi
+	elif [ ${INTERACTIVE_MODE} -eq 2 ]; then
+		exit 0
+	fi
+    fi
+    if [ ${BSDPLATFORM} = "dragonfly" ]; then
+	# Stop the tee process and stop redirecting stdout so that
+	# the terminal can be properly used in the jail
+	log_stop
 
-		if [ $INTERACTIVE_MODE -eq 1 ]; then
-			msg "Entering interactive test mode. Type 'exit' when done."
-			injail env -i TERM=${SAVED_TERM} \
-				PACKAGESITE="file:///packages" /usr/bin/login -fp root
-			[ -z "${failed_phase}" ] || err 1 "Build failed in phase: ${failed_phase}"
-		elif [ $INTERACTIVE_MODE -eq 2 ]; then
-			msg "Leaving jail ${MASTERNAME} running, mounted at ${MASTERMNT} for interactive run testing"
-			msg "To enter jail: jexec ${MASTERNAME} /bin/sh"
-			msg "To stop jail: poudriere jail -k -j ${MASTERNAME}"
-			CLEANING_UP=1
-			exit 0
+	# Update LISTPORTS so enter_interactive only installs the built port
+	# via listed_ports()
+	LISTPORTS="${ORIGIN}"
+	if [ $INTERACTIVE_MODE -eq 1 ]; then
+		msg "Entering interactive test mode. Type 'exit' when done."
+		injail env -i TERM=${SAVED_TERM} \
+			PACKAGESITE="file:///packages" /bin/sh
+		if [ -n "${failed_phase}" ]; then
+			bset_job_status "failed/${failed_phase}" "${ORIGIN}"
+			msg_error "Build failed in phase: ${COLOR_PHASE}${failed_phase}${COLOR_RESET}"
+			cleanup
+			set +e
+			exit 1
 		fi
+	else
+		msg "Leaving jail ${MASTERNAME} running, mounted at ${MASTERMNT} for interactive run testing"
+		msg "To enter jail: chroot ${MASTERMNT} /bin/sh"
+		msg "To stop jail: 'exit', 'poudriere combo -C -j ${JAILNAME} -p ${PTNAME}'"
+		exit 0
 	fi
-	if [ ${BSDPLATFORM} = "dragonfly" ]; then
-		if [ $INTERACTIVE_MODE -eq 1 ]; then
-			msg "Entering interactive test mode. Type 'exit' when done."
-			injail env -i TERM=${SAVED_TERM} \
-				PACKAGESITE="file:///packages" /bin/sh
-			[ -z "${failed_phase}" ] || 
-				err 1 "Build failed in phase: ${failed_phase}"
-		else
-			msg "Leaving jail ${MASTERNAME} running, mounted at ${MASTERMNT} for interactive run testing"
-			msg "To enter jail: chroot ${MASTERMNT} /bin/sh"
-			msg "To stop jail: 'exit', 'poudriere combo -C -j ${JAILNAME} -p ${PTNAME}'"
-			CLEANING_UP=1
-			exit 0
-		fi
+    fi
+else
+	if [ -f ${MASTERMNT}/tmp/pkgs/${PKGNAME}.${PKG_EXT} ]; then
+		msg "Installing from package"
+		ensure_pkg_installed
+		injail ${PKG_ADD} /tmp/pkgs/${PKGNAME}.${PKG_EXT} || :
 	fi
-	print_phase_footer
 fi
 
 msg "Cleaning up"
 injail make -C /usr/ports/${ORIGIN} clean
 
 msg "Deinstalling package"
+ensure_pkg_installed
 injail ${PKG_DELETE} ${PKGNAME}
 
-stop_build /usr/ports/${ORIGIN}
+stop_build /usr/ports/${ORIGIN} ${ret}
+
+bset_job_status "stopped" "${ORIGIN}"
+
+bset status "done:"
 
 cleanup
 set +e

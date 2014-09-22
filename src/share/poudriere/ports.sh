@@ -44,7 +44,7 @@ Parameters:
 Options:
     -k            -- when used with -d, only unregister the directory from
                      the ports tree list, but keep the files.
-    -p name       -- specifies the name of the portstree we workon . If not
+    -p name       -- specifies the name of the portstree to work on . If not
                      specified, work on a portstree called "default".
     -M mountpoint -- mountpoint
     -m method     -- when used with -c, specify the method used to create the
@@ -64,7 +64,6 @@ QUIET=0
 VERBOSE=0
 KEEP=0
 QOP="-q"
-BRANCH=head
 while getopts "cudklp:M:m:vq" FLAG; do
 	case "${FLAG}" in
 		B)
@@ -118,6 +117,9 @@ done
 
 [ $(( CREATE + UPDATE + DELETE + LIST )) -lt 1 ] && usage
 
+saved_argv="$@"
+shift $((OPTIND-1))
+
 METHOD=${METHOD:-git}
 PTNAME=${PTNAME:-default}
 
@@ -128,12 +130,16 @@ git);;
 esac
 
 if [ ${LIST} -eq 1 ]; then
-	format='%-20s %-17s %-7s %s\n'
-	[ $QUIET -eq 0 ] &&
-		printf "${format}" "PORTSTREE" "LAST-UPDATED" "METHOD" "PATH"
-	porttree_list | while read ptname ptmethod pthack ptpath; do
-		printf "${format}" ${ptname} ${pthack} ${ptmethod} ${ptpath}
-	done
+	format='%%-20s %%-17s %%-7s %%s\n'
+	display_setup "${format}" 4 "-d"
+	display_add "PORTSTREE" "LAST-UPDATED" "METHOD" "PATH"
+	while read ptname ptmethod pthack ptpath; do
+		display_add ${ptname} ${pthack} ${ptmethod} ${ptpath}
+	done <<- EOF
+	$(porttree_list)
+	EOF
+	[ ${QUIET} -eq 1 ] && quiet="-q"
+	display_output ${quiet}
 else
 	[ -z "${PTNAME}" ] && usage
 fi
@@ -165,6 +171,7 @@ generate_makefiles() {
 if [ ${CREATE} -eq 1 ]; then
 	# test if it already exists
 	porttree_exists ${PTNAME} && err 2 "The ports tree, ${PTNAME}, already exists"
+	maybe_run_queued "${saved_argv}"
 	: ${PTMNT="${BASEFS:=/usr/local${ZROOTFS}}/ports/${PTNAME}"}
 	: ${PTFS="${ZPOOL}${ZROOTFS}/ports/${PTNAME}"}
 
@@ -180,18 +187,15 @@ if [ ${CREATE} -eq 1 ]; then
 			msg "Cloning the ports tree via rsync"
 			cpdup -VV -i0 ${QOP} ${DPORTS_RSYNC_LOC}/ ${PTMNT}/ || \
 			    err 1 " fail"
-			bhack=$(date "+%Y-%m-%d/%H:%M")
-			pset ${PTNAME} timestamp ${bhack}
 			;;
 		git)
 			msg "Cloning the ports tree via git"
 			git clone --depth 1 ${QOP} ${DPORTS_URL} ${PTMNT} || \
 			    err 1 " fail"
-			bhack=$(date "+%Y-%m-%d/%H:%M")
-			pset ${PTNAME} timestamp ${bhack}
 			;;
 		esac
 		pset ${PTNAME} method ${METHOD}
+		pset ${PTNAME} timestamp $(date "+%Y-%m-%d/%H:%M")
 	else
 		pset ${PTNAME} method "-"
 	fi
@@ -206,6 +210,7 @@ if [ ${DELETE} -eq 1 ]; then
 	[ -d "${PTMNT}/ports" ] && PORTSMNT="${PTMNT}/ports"
 	/sbin/mount | /usr/bin/grep -q "${PORTSMNT:-${PTMNT}} on" \
 		&& err 1 "Ports tree \"${PTNAME}\" is currently mounted and being used."
+	maybe_run_queued "${saved_argv}"
 	msg_n "Deleting portstree \"${PTNAME}\""
 	[ ${KEEP} -eq 0 ] && destroyfs ${PTMNT} ports
 	rm -rf ${POUDRIERED}/ports/${PTNAME} || :
@@ -219,6 +224,7 @@ if [ ${UPDATE} -eq 1 ]; then
 	[ -d "${PTMNT}/ports" ] && PORTSMNT="${PTMNT}/ports"
 	/sbin/mount | /usr/bin/grep -q "${PORTSMNT:-${PTMNT}} on" \
 		&& err 1 "Ports tree \"${PTNAME}\" is currently mounted and being used."
+	maybe_run_queued "${saved_argv}"
 	msg "Updating portstree \"${PTNAME}\""
 	if [ -z "${METHOD}" -o ${METHOD} = "-" ]; then
 		METHOD=git
@@ -228,14 +234,10 @@ if [ ${UPDATE} -eq 1 ]; then
 	rsync)
 		msg "Updating the ports tree via rsync"
 		rsync -a ${QOP} --delete ${DPORTS_RSYNC_LOC}/ ${PTMNT}/
-		bhack=$(date "+%Y-%m-%d/%H:%M")
-		pset ${PTNAME} timestamp ${bhack}
 		;;
 	git)
 		msg "Pulling from ${DPORTS_URL}"
 		cd ${PORTSMNT:-${PTMNT}} && git pull ${QOP}
-		bhack=$(date "+%Y-%m-%d/%H:%M")
-		pset ${PTNAME} timestamp ${bhack}
 		;;
 	*)
 		err 1 "Undefined upgrade method"
@@ -243,5 +245,5 @@ if [ ${UPDATE} -eq 1 ]; then
 	esac
 
 	generate_makefiles
-	date +%s > ${PORTSMNT:-${PTMNT}}/.poudriere.stamp
+	pset ${PTNAME} timestamp $(date "+%Y-%m-%d/%H:%M")
 fi

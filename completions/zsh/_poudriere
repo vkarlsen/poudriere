@@ -30,17 +30,22 @@ _bulk=(
 	'-F[Only fetch from original master_sites; skip FreeBSD mirrors]'
 	'-c[Clean the previous built binary packages]'
 	'-C[Clean previous packages for the given list to build]'
+        '-i[Interactive mode. Enter jail after build and automatically cleanup when done]'
+        '-I[Advanced interactive mode. Leave jail running but do not enter]'
 	'-n[Dry run. Show what would be done, but do not build any packages]'
 	'-N[Do not build repository or INDEX when done building]'
+        '-k[Keep going when using -t and do not consider failures as fatal]'
 	'-t[Test the specified ports for leftovers]'
 	'-r[Recursively test all dependencies as well]'
-	'-s[Skip sanity]'
+        '-s[skip sanity/incremental rebuild checks]'
+        '-S[skip rebuild of packages for which their dependencies require a rebuild]'
 	'-j[Run only on the given jail]::jail name:_poudriere_jail'
 	'-p[Specify on which ports tree the bulk will be done]::tree:_poudriere_pt'
 	'-T[Try building BROKEN ports]'
 	'-J[Specify the number of jobs you want to run in parallel]::'
 	'-R[Remove RESTRICTED packages after building]'
 	'-v[Be verbose; show more information. Specify twice to enable debug output.]'
+        '-w[Save WRKDIR on failed builds]'
 	'-z[Specify on which SET to use]::'
 )
 
@@ -60,6 +65,7 @@ _jail=(
 	'-f[FS name (tank/jails/myjail)]::fs:_files -/' \
 	'-t[version to upgrade to]' \
 	'-M[mountpoint]::mountpoint:_files -/'
+	'-r[rename jail]::'
 )
 
 _options=(
@@ -100,16 +106,28 @@ _testport=(
 	'(-o)-d[specify on which port we work]::path:_files -/'
 	'-c[run make config for the given port]::'
 	'-j[run only inside the given jail]::name:_poudriere_jail'
-	'-n[no custom prefix]::'
+        '-i[Interactive mode. Enter jail after build and automatically cleanup when done]'
+        '-I[Advanced interactive mode. Leave jail running but do not enter]'
+        '-k[Do not consider failures as fatal; find all failures]'
 	'-N[Do not build repository or INDEX when done building dependencies]'
 	'-p[specify on which portstree we work]::tree:_poudriere_pt'
+        '-P[use custom prefix]'
+        '-s[skip sanity/incremental rebuild checks]'
+        '-S[skip rebuild of packages for which their dependencies require a rebuild]'
 	'-v[Be verbose; show more information. Specify twice to enable debug output.]'
+        '-w[Save WRKDIR on failed builds]'
 	'-z[Specify on which SET to use]::'
 )
 
 _status=(
+        '-a[show all builds, not just currently running]'
+        '-b[show builder details]'
+        '-B[which build to match on]:buildname'
+        '-c[show a more compact output]'
 	'-j[run only inside the given jail]::name:_poudriere_jail'
+        '-l[show logs instead of URL]'
 	'-p[specify on which portstree we work]::tree:_poudriere_pt'
+        '-H[Do not print headers and separate fields by a single tab instead of arbitrary white space.]'
 	'-z[Specify on which SET to use]::'
 )
 
