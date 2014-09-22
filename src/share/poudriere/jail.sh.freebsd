@@ -2,13 +2,23 @@
 # FREEBSD SPECIFIC DEFINITIONS
 
 delete_jail() {
-	test -z ${JAILNAME} && usage
+	local cache_dir method
+
+	test -z ${JAILNAME} && usage JAILNAME
 	jail_exists ${JAILNAME} || err 1 "No such jail: ${JAILNAME}"
 	jail_runs ${JAILNAME} &&
 		err 1 "Unable to delete jail ${JAILNAME}: it is running"
 	msg_n "Removing ${JAILNAME} jail..."
-	destroyfs ${JAILMNT} jail
-	rm -rf ${POUDRIERED}/jails/${JAILNAME} || :
+	method=$(jget ${JAILNAME} method)
+	if [ "${method}" = "null" ]; then
+		mv -f ${JAILMNT}/etc/login.conf.orig \
+		    ${JAILMNT}/etc/login.conf
+		cap_mkdb ${JAILMNT}/etc/login.conf
+	else
+		TMPFS_ALL=0 destroyfs ${JAILMNT} jail
+	fi
+	cache_dir="${POUDRIERE_DATA}/cache/${JAILNAME}-*"
+	rm -rf ${POUDRIERED}/jails/${JAILNAME} ${cache_dir} || :
 	echo " done"
 }
 
@@ -19,7 +29,9 @@ update_version_env() {
 	osversion=`awk '/\#define __FreeBSD_version/ { print $3 }' ${JAILMNT}/usr/include/sys/param.h`
 	login_env=",UNAME_r=${release% *},UNAME_v=FreeBSD ${release},OSVERSION=${osversion}"
 
-	[ "${ARCH}" = "i386" -a "${REALARCH}" = "amd64" ] &&
+	# XXX - Need to support qemu here
+	# Check TARGET=i386 not TARGET_ARCH due to pc98/i386
+	[ "${ARCH%.*}" = "i386" -a "${REALARCH}" = "amd64" ] &&
 		login_env="${login_env},UNAME_p=i386,UNAME_m=i386"
 
 	sed -i "" -e "s/,UNAME_r.*:/:/ ; s/:\(setenv.*\):/:\1${login_env}:/" ${JAILMNT}/etc/login.conf
@@ -27,10 +39,7 @@ update_version_env() {
 }
 
 update_jail() {
-	jail_exists ${JAILNAME} || err 1 "No such jail: ${JAILNAME}"
-	jail_runs ${JAILNAME} &&
-		err 1 "Unable to update jail ${JAILNAME}: it is running"
-
+	SRC_BASE="${JAILMNT}/usr/src"
 	METHOD=$(jget ${JAILNAME} method)
 	if [ -z "${METHOD}" -o "${METHOD}" = "-" ]; then
 		METHOD="ftp"
@@ -40,10 +49,11 @@ update_jail() {
 	case ${METHOD} in
 	ftp|http|ftp-archive)
 		MASTERMNT=${JAILMNT}
-		MASTERNAME=${JAILNAME}
+		MASTERNAME=${JAILNAME}-${PTNAME}${SETNAME:+-${SETNAME}}
 		[ -n "${RESOLV_CONF}" ] && cp -v "${RESOLV_CONF}" "${JAILMNT}/etc/"
-		do_jail_mounts ${JAILMNT} ${ARCH}
-		jstart 1
+		do_jail_mounts "${JAILMNT}" "${JAILMNT}" ${ARCH}
+		JNETNAME="n"
+		jstart
 		if [ -z "${TORELEASE}" ]; then
 			injail env PAGER=/bin/cat /usr/sbin/freebsd-update fetch install
 		else
@@ -58,27 +68,35 @@ update_jail() {
 			# Reboot
 			update_version_env ${TORELEASE}
 			# Remove stale files
-			injail env PAGER=/bin/cat /usr/sbin/freebsd-update install ||
-				err 1 "Fail to upgrade system"
+			injail env PAGER=/bin/cat /usr/sbin/freebsd-update install || :
 			jset ${JAILNAME} version ${TORELEASE}
 		fi
 		jstop
 		umountfs ${JAILMNT} 1
+		update_version
 		[ -n "${RESOLV_CONF}" ] && rm -f ${JAILMNT}/etc/resolv.conf
+		update_version_env $(jget ${JAILNAME} version)
 		markfs clean ${JAILMNT}
 		;;
 	csup)
 		msg "csup has been deprecated by FreeBSD. Only use if you are syncing with your own csup repo."
 		install_from_csup
 		update_version_env $(jget ${JAILNAME} version)
-		yes | make -C ${JAILMNT}/usr/src delete-old delete-old-libs DESTDIR=${JAILMNT}
+		make -C ${SRC_BASE} delete-old delete-old-libs DESTDIR=${JAILMNT} BATCH_DELETE_OLD_FILES=yes
 		markfs clean ${JAILMNT}
 		;;
 	svn*)
 		install_from_svn version_extra
 		RELEASE=$(update_version "${version_extra}")
 		update_version_env "${RELEASE}"
-		yes | make -C ${JAILMNT}/usr/src delete-old delete-old-libs DESTDIR=${JAILMNT}
+		make -C ${SRC_BASE} delete-old delete-old-libs DESTDIR=${JAILMNT} BATCH_DELETE_OLD_FILES=yes
+		markfs clean ${JAILMNT}
+		;;
+	src=*)
+		SRC_BASE="${METHOD#src=}"
+		install_from_src
+		update_version_env $(jget ${JAILNAME} version)
+		make -C ${SRC_BASE} delete-old delete-old-libs DESTDIR=${JAILMNT} BATCH_DELETE_OLD_FILES=yes
 		markfs clean ${JAILMNT}
 		;;
 	allbsd|gjb|url=*)
@@ -87,23 +105,24 @@ update_jail() {
 		delete_jail
 		create_jail
 		;;
+	null|tar)
+		err 1 "Upgrade is not supported with ${METHOD}; to upgrade, please delete and recreate the jail"
+		;;
 	*)
 		err 1 "Unsupported method"
 		;;
 	esac
-
+	jset ${JAILNAME} timestamp $(date +%s)
 }
 
 build_and_install_world() {
-	case "${ARCH}" in
-	mips64)
-		export TARGET=mips
-		;;
-	armv6)
-		export TARGET=arm
-		;;
-	esac
-	export TARGET_ARCH=${ARCH}
+	if [ -n "${EMULATOR}" ]; then
+		mkdir -p ${JAILMNT}${EMULATOR%/*}
+		cp "${EMULATOR}" "${JAILMNT}${EMULATOR}"
+	fi
+
+	[ "${ARCH%.*}" = "${ARCH#*.}" ] || export TARGET=${ARCH%.*}
+	export TARGET_ARCH=${ARCH#*.}
 	export SRC_BASE=${JAILMNT}/usr/src
 	mkdir -p ${JAILMNT}/etc
 	[ -f ${JAILMNT}/etc/src.conf ] && rm -f ${JAILMNT}/etc/src.conf
@@ -115,47 +134,13 @@ build_and_install_world() {
 	export SRCCONF=${JAILMNT}/etc/src.conf
 	MAKE_JOBS="-j${PARALLEL_JOBS}"
 
-	fbsdver=$(awk '/^\#define[[:blank:]]__FreeBSD_version/ {print $3}' ${JAILMNT}/usr/src/sys/sys/param.h)
-	hostver=$(sysctl -n kern.osreldate)
-	make_cmd=make
-	if [ ${hostver} -gt 1000000 -a ${fbsdver} -lt 1000000 ]; then
-		FMAKE=$(which fmake 2>/dev/null)
-		[ -n "${FMAKE}" ] ||
-			err 1 "You need fmake installed on the host: devel/fmake"
-		make_cmd=${FMAKE}
-	fi
-
-	# Don't enable CCACHE for 10, there are still obscure clang and ld
-	# issues
-	if [ ${fbsdver} -lt 1000000 ]; then
-		: ${CCACHE_PATH:="/usr/local/libexec/ccache"}
-		if [ -n "${CCACHE_DIR}" -a -d ${CCACHE_PATH}/world ]; then
-			export CCACHE_DIR
-			export CC="${CCACHE_PATH}/world/cc"
-			export CXX="${CCACHE_PATH}/world/c++"
-			unset CCACHE_TEMPDIR
-		fi
-	fi
+	setup_compat_env
 
 	msg "Starting make buildworld with ${PARALLEL_JOBS} jobs"
-	${make_cmd} -C ${JAILMNT}/usr/src buildworld ${MAKE_JOBS} \
+	${MAKE_CMD} -C ${SRC_BASE} buildworld ${MAKE_JOBS} \
 	    ${MAKEWORLDARGS} || err 1 "Failed to 'make buildworld'"
-	msg "Starting make installworld"
-	${make_cmd} -C ${JAILMNT}/usr/src installworld DESTDIR=${JAILMNT} \
-	    DB_FROM_SRC=1 || err 1 "Failed to 'make installworld'"
-	${make_cmd} -C ${JAILMNT}/usr/src DESTDIR=${JAILMNT} DB_FROM_SRC=1 \
-	    distrib-dirs || err 1 "Failed to 'make distrib-dirs'"
-	${make_cmd} -C ${JAILMNT}/usr/src DESTDIR=${JAILMNT} distribution ||
-	    err 1 "Failed to 'make distribution'"
 
-	case "${ARCH}" in
-	mips64)
-		cp `which qemu-mips64` ${JAILMNT}/usr/bin/qemu-mips64
-		;;
-	armv6)
-		cp `which qemu-arm` ${JAILMNT}/usr/bin/qemu-arm
-		;;
-	esac
+	installworld
 }
 
 install_from_svn() {
@@ -164,8 +149,11 @@ install_from_svn() {
 	local proto
 	local svn_rev
 
-	[ -d ${JAILMNT}/usr/src ] && UPDATE=1
-	mkdir -p ${JAILMNT}/usr/src
+	if [ -d "${SRC_BASE}" ]; then
+		UPDATE=1
+	else
+		mkdir -p ${SRC_BASE}
+	fi
 	case ${METHOD} in
 	svn+http) proto="http" ;;
 	svn+https) proto="https" ;;
@@ -175,22 +163,22 @@ install_from_svn() {
 	esac
 	if [ ${UPDATE} -eq 0 ]; then
 		msg_n "Checking out the sources from svn..."
-		${SVN_CMD} -q co ${proto}://${SVN_HOST}/base/${VERSION} ${JAILMNT}/usr/src || err 1 " fail"
+		${SVN_CMD} -q co ${proto}://${SVN_HOST}/base/${VERSION} ${SRC_BASE} || err 1 " fail"
 		echo " done"
 		if [ -n "${SRCPATCHFILE}" ]; then
 			msg_n "Patching the sources with ${SRCPATCHFILE}"
-			${SVN_CMD} -q patch ${SRCPATCHFILE} ${JAILMNT}/usr/src || err 1 " fail"
+			${SVN_CMD} -q patch ${SRCPATCHFILE} ${SRC_BASE} || err 1 " fail"
 			echo done
 		fi
 	else
 		msg_n "Updating the sources from svn..."
-		${SVN_CMD} upgrade ${JAILMNT}/usr/src 2>/dev/null || :
-		${SVN_CMD} -q update ${JAILMNT}/usr/src || err 1 " fail"
+		${SVN_CMD} upgrade ${SRC_BASE} 2>/dev/null || :
+		${SVN_CMD} -q update -r ${TORELEASE:-head} ${SRC_BASE} || err 1 " fail"
 		echo " done"
 	fi
 	build_and_install_world
 
-	svn_rev=$(${SVN_CMD} info ${JAILMNT}/usr/src |
+	svn_rev=$(${SVN_CMD} info ${SRC_BASE} |
 	    awk '/Last Changed Rev:/ {print $4}')
 	setvar "${var_version_extra}" "r${svn_rev}"
 }
@@ -198,7 +186,7 @@ install_from_svn() {
 install_from_csup() {
 	local var_version_extra="$1"
 	local UPDATE=0
-	[ -d ${JAILMNT}/usr/src ] && UPDATE=1
+	[ -d "${SRC_BASE}" ] && UPDATE=1
 	mkdir -p ${JAILMNT}/etc
 	mkdir -p ${JAILMNT}/var/db
 	mkdir -p ${JAILMNT}/usr
@@ -314,12 +302,15 @@ install_from_ftp() {
 }
 
 create_jail() {
-	jail_exists ${JAILNAME} && err 2 "The jail ${JAILNAME} already exists"
-
-	test -z ${VERSION} && usage
-
 	[ "${JAILNAME#*.*}" = "${JAILNAME}" ] ||
 		err 1 "The jailname can not contain a period (.). See jail(8)"
+
+	if [ "${METHOD}" = "null" ]; then
+		[ -z "${JAILMNT}" ] && \
+		    err 1 "Must set -M to path of jail to use"
+		[ "${JAILMNT}" = "/" ] && \
+		    err 1 "Cannot use /"
+	fi
 
 	if [ -z ${JAILMNT} ]; then
 		[ -z ${BASEFS} ] && err 1 "Please provide a BASEFS variable in your poudriere.conf"
@@ -330,6 +321,8 @@ create_jail() {
 		[ -z ${ZPOOL} ] && err 1 "Please provide a ZPOOL variable in your poudriere.conf"
 		JAILFS=${ZPOOL}${ZROOTFS}/jails/${JAILNAME}
 	fi
+
+	SRC_BASE="${JAILMNT}/usr/src"
 
 	case ${METHOD} in
 	ftp|http|gjb|ftp-archive|url=*)
@@ -389,6 +382,22 @@ create_jail() {
 		msg "csup has been depreciated by FreeBSD. Only use if you are syncing with your own csup repo."
 		FCT=install_from_csup
 		;;
+	src=*)
+		SRC_BASE="${METHOD#src=}"
+		FCT=install_from_src
+		;;
+	tar=*)
+		FCT=install_from_tar
+		TARBALL="${METHOD##*=}"
+		[ -z "${TARBALL}" ] && \
+		    err 1 "Must use format -m tar=/path/to/tarball.tar"
+		[ -r "${TARBALL}" ] || err 1 "Cannot read file ${TARBALL}"
+		METHOD="${METHOD%%=*}"
+		;;
+	null)
+		JAILFS=none
+		FCT=
+		;;
 	*)
 		err 2 "Unknown method to create the jail"
 		;;
@@ -397,6 +406,7 @@ create_jail() {
 	createfs ${JAILNAME} ${JAILMNT} ${JAILFS:-none}
 	[ -n "${JAILFS}" -a "${JAILFS}" != "none" ] && jset ${JAILNAME} fs ${JAILFS}
 	jset ${JAILNAME} version ${VERSION}
+	jset ${JAILNAME} timestamp $(date +%s)
 	jset ${JAILNAME} arch ${ARCH}
 	jset ${JAILNAME} mnt ${JAILMNT}
 
@@ -404,45 +414,64 @@ create_jail() {
 	# if any error is encountered
 	CLEANUP_HOOK=cleanup_new_jail
 	jset ${JAILNAME} method ${METHOD}
-	${FCT} version_extra
+	[ -n "${FCT}" ] && ${FCT} version_extra
 
-	RELEASE=$(update_version "${version_extra}")
-	update_version_env "${RELEASE}"
-
-	if [ "${ARCH}" = "i386" -a "${REALARCH}" = "amd64" ]; then
-		cat > ${JAILMNT}/etc/make.conf << EOF
-ARCH=i386
-MACHINE=i386
-MACHINE_ARCH=i386
-EOF
-
+	if [ -r "${SRC_BASE}/sys/conf/newvers.sh" ]; then
+		RELEASE=$(update_version "${version_extra}")
+	else
+		RELEASE="${VERSION}"
 	fi
 
+	cp -f "${JAILMNT}/etc/login.conf" "${JAILMNT}/etc/login.conf.orig"
+	update_version_env "${RELEASE}"
+
 	pwd_mkdb -d ${JAILMNT}/etc/ -p ${JAILMNT}/etc/master.passwd
-
-	cat >> ${JAILMNT}/etc/make.conf << EOF
-USE_PACKAGE_DEPENDS=yes
-BATCH=yes
-WRKDIRPREFIX=/wrkdirs
-EOF
-
-	mkdir -p ${JAILMNT}/usr/ports
-	mkdir -p ${JAILMNT}/wrkdirs
-	mkdir -p ${POUDRIERE_DATA}/logs
-
 	jail -U root -c path=${JAILMNT} command=/sbin/ldconfig -m /lib /usr/lib /usr/lib/compat
 
 	markfs clean ${JAILMNT}
+
+	# Always update when using FreeBSD dists
+	case ${METHOD} in
+		ftp|http|ftp-archive)
+			update_jail
+			;;
+	esac
+
 	unset CLEANUP_HOOK
+
 	msg "Jail ${JAILNAME} ${VERSION} ${ARCH} is ready to be used"
 }
 
 start_a_jail() {
-	export SET_STATUS_ON_START=0
 	export MASTERNAME=${JAILNAME}-${PTNAME}${SETNAME:+-${SETNAME}}
-	export MASTERMNT=${POUDRIERE_DATA}/build/${MASTERNAME}/ref
+	_mastermnt MASTERMNT
+	export MASTERMNT
 	jail_start ${JAILNAME} ${PTNAME} ${SETNAME}
-	jstop
-	# Restart with network
-	jstart 1
+	JNETNAME="n"
+}
+
+setup_compat_env() {
+	local osversion hostver
+
+	osversion=$(awk '/^\#define[[:blank:]]__FreeBSD_version/ {print $3}' ${SRC_BASE}/sys/sys/param.h)
+	hostver=$(awk '/^\#define[[:blank:]]__FreeBSD_version/ {print $3}' /usr/include/sys/param.h)
+	MAKE_CMD=make
+	if [ ${hostver} -gt 1000000 -a ${osversion} -lt 1000000 ]; then
+		FMAKE=$(which fmake 2>/dev/null)
+		[ -n "${FMAKE}" ] ||
+			err 1 "You need fmake installed on the host: devel/fmake"
+		MAKE_CMD=${FMAKE}
+	fi
+
+	# Don't enable CCACHE for 10, there are still obscure clang and ld
+	# issues
+	if [ ${osversion} -lt 1000000 ]; then
+		: ${CCACHE_PATH:="/usr/local/libexec/ccache"}
+		if [ -n "${CCACHE_DIR}" -a -d ${CCACHE_PATH}/world ]; then
+			export CCACHE_DIR
+			export CC="${CCACHE_PATH}/world/cc"
+			export CXX="${CCACHE_PATH}/world/c++"
+			unset CCACHE_TEMPDIR
+		fi
+	fi
 }

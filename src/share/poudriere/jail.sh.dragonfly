@@ -2,13 +2,17 @@
 # DRAGONFLY SPECIFIC DEFINITIONS
 
 delete_jail() {
-	test -z ${JAILNAME} && usage
+	local cache_dir method
+
+	test -z ${JAILNAME} && usage JAILNAME
 	jail_exists ${JAILNAME} || err 1 "No such jail: ${JAILNAME}"
 	jail_runs ${JAILNAME} &&
 		err 1 "Unable to delete jail ${JAILNAME}: it is running"
 	msg_n "Removing ${JAILNAME} jail..."
-	destroyfs ${JAILMNT} jail
-	rm -rf ${POUDRIERED}/jails/${JAILNAME} || :
+
+	TMPFS_ALL=0 destroyfs ${JAILMNT} jail
+	cache_dir="${POUDRIERE_DATA}/cache/${JAILNAME}-*"
+	rm -rf ${POUDRIERED}/jails/${JAILNAME} ${cache_dir} || :
 	echo " done"
 }
 
@@ -24,11 +28,6 @@ update_version() {
 }
 
 update_jail() {
-	# DragonFly expects 1 argument (quick), FreeBSD doesn't
-	jail_exists ${JAILNAME} || err 1 "No such jail: ${JAILNAME}"
-	jail_runs ${JAILNAME} &&
-		err 1 "Unable to update jail ${JAILNAME}: it is running"
-
 	METHOD=$(jget ${JAILNAME} method)
 	if [ -z "${METHOD}" -o "${METHOD}" = "-" ]; then
 		METHOD="git"
@@ -151,8 +150,6 @@ install_from_git() {
 }
 
 create_jail() {
-	jail_exists ${JAILNAME} && err 2 "The jail ${JAILNAME} already exists"
-
 	[ -z ${VERSION} ] && VERSION=master
 	[ -z ${JAILMNT} ] && JAILMNT=${BASEFS}/jails/${JAILNAME}
 	[ -z ${JAILFS} ] && JAILFS=${BASEFS}/worlds/${JAILNAME}
@@ -217,7 +214,8 @@ EOF
 
 start_a_jail() {
 	export MASTERNAME=${JAILNAME}-${PTNAME}${SETNAME:+-${SETNAME}}
-	export MASTERMNT=${POUDRIERE_DATA}/build/${MASTERNAME}/ref
+	_mastermnt MASTERMNT
+	export MASTERMNT
 	jail_start ${JAILNAME} ${PTNAME} ${SETNAME}
 	msg "Entering interactive mode. Type 'exit' when done."
 	injail /bin/tcsh
