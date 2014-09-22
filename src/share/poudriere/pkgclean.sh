@@ -109,10 +109,12 @@ while getopts "aj:J:f:nNp:Rvyz:" FLAG; do
 	esac
 done
 
+saved_argv="$@"
+
 shift $((OPTIND-1))
 
 MASTERNAME=${JAILNAME}-${PTNAME}${SETNAME:+-${SETNAME}}
-MASTERMNT=${POUDRIERE_DATA}/build/${MASTERNAME}/ref
+_mastermnt MASTERMNT
 
 export MASTERNAME
 export MASTERMNT
@@ -123,6 +125,8 @@ PACKAGES=${POUDRIERE_DATA}/packages/${MASTERNAME}
 
 PKG_EXT='*' package_dir_exists_and_has_packages ||
     err 1 "No packages exist for ${MASTERNAME}"
+
+maybe_run_queued "${saved_argv}"
 
 msg "Gathering all expected packages"
 jail_start ${JAILNAME} ${PTNAME} ${SETNAME}
@@ -161,7 +165,7 @@ for file in ${PACKAGES}/All/*; do
 done
 
 pkg_compare() {
-	[ $# -eq 2 ] || eargs oldversion newversion
+	[ $# -eq 2 ] || eargs pkg_compare oldversion newversion
 	local oldversion="$1"
 	local newversion="$2"
 
@@ -246,8 +250,8 @@ if [ ${file_cnt} -eq 0 ]; then
 	exit 0
 fi
 
-hsize=$(cat ${BADFILES_LIST} | xargs stat -f %z | \
-	awk '{total += $1} END {print total}' | \
+hsize=$(cat ${BADFILES_LIST} | xargs stat -f '%i %z' | sort -u | \
+	awk '{total += $2} END {print total}' | \
 	awk -f ${AWKPREFIX}/humanize.awk
 )
 
