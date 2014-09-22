@@ -176,24 +176,23 @@ solo_dep_check() {
 delete_old_logs() {
 	[ $# -ne 0 ] && eargs
 	local mnt
-	local BULK_LOG_PATH=$(log_path)/..
+	local BULK_LOG_PATH_LATEST=$(log_path)
+	local BULK_LOG_PATH=${BULK_LOG_PATH_LATEST%%/latest}
+	local LPP=${BULK_LOG_PATH}/../latest-per-pkg
 	jail_exists ${JAILNAME} || err 1 "No such jail: ${JAILNAME}"
 	porttree_exists ${PTNAME} || err 1 "No such tree: ${PTNAME}"
 	case ${LOG_DAYS} in
 	  ''|*[!0-9]*) err 1 "<days> is not an integer: ${LOG_DAYS}" ;;
 	esac
-
 	(cd ${BULK_LOG_PATH} && \
 	 find -s * -name "2*" -type d -depth 0 -maxdepth 0 -mtime +${LOG_DAYS}d | \
 	 xargs rm -rf)
 	(cd ${BULK_LOG_PATH} && \
 	 find -s latest-per-pkg -name "*.log" -type f -mtime +${LOG_DAYS}d -delete)
-	(cd ${BULK_LOG_PATH} && \
-	 find -s ../latest-per-pkg -name "*.log" -type f -mtime +${LOG_DAYS}d -delete)
-	(cd ${BULK_LOG_PATH} && \
-	 find -s ../latest-per-pkg -type d -empty | xargs rmdir)
-	(cd ${BULK_LOG_PATH} && \
-	 find -s ../latest-per-pkg -type d -empty | xargs rmdir)
+	[ -d ${LPP} ] && \
+		find -s ${LPP} -name "*.log" -type f -mtime +${LOG_DAYS}d -delete && \
+		find -s ${LPP} -type d -empty -depth 1 | xargs rmdir
+	[ -d "${LPP}" ] && find -s ${LPP} -type d -empty -depth 1 | xargs rmdir
 }
 
 case "${INFO}${DISMOUNT}${LISTFAIL}${DEPCHECK}${RMLOGS}" in
