@@ -152,14 +152,16 @@ function format_log(pkgname, errors, text) {
 	return html;
 }
 
-function format_status_row(status, row) {
+function format_status_row(status, row, buildnum) {
 	var table_row = [];
 
 	if (status == "built") {
+		table_row.push(buildnum);
 		table_row.push(format_pkgname(row.pkgname));
 		table_row.push(format_origin(row.origin));
 		table_row.push(format_log(row.pkgname, false, "logfile"));
 	} else if (status == "failed") {
+		table_row.push(buildnum);
 		table_row.push(format_pkgname(row.pkgname));
 		table_row.push(format_origin(row.origin));
 		table_row.push(row.phase);
@@ -268,7 +270,7 @@ function process_data(data) {
 							data.skipped[row.pkgname] :
 							0;
 
-					table_rows.push(format_status_row(status, row));
+					table_rows.push(format_status_row(status, row, n+1));
 				}
 				$('#' + status + '_body').data('index', n);
 				$('#' + status + '_table').dataTable().fnAddData(table_rows);
@@ -293,7 +295,7 @@ function process_data(data) {
 }
 
 $(document).ready(function() {
-	var columnDefs, status, types, i;
+	var columnDefs, sortDefs, status, types, i;
 
 	// Enable LOADING overlay until the page is loaded
 	$('#loading_overlay').show();
@@ -307,8 +309,8 @@ $(document).ready(function() {
 	columnDefs = {
 		"built": [
 			// Disable sorting/searching on 'logfile' link
-			{"bSortable": false, "aTargets": [2]},
-			{"bSearchable": false, "aTargets": [2]},
+			{"bSortable": false, "aTargets": [3]},
+			{"bSearchable": false, "aTargets": [3]},
 		],
 		"failed": [
 			// Skipped count is numeric
@@ -320,18 +322,25 @@ $(document).ready(function() {
 			{"sType": "numeric", "aTargets": [2]},
 		],
 	};
+	sortDefs = {
+		"built": [[ 0, 'desc' ]],
+		"failed": [[ 0, 'desc' ]],
+		"skipped": [],
+		"ignored": [],
+	};
 
 	types = ['built', 'failed', 'skipped', 'ignored'];
 	for (i in types) {
 		status = types[i];
 		$('#' + status).hide();
 		$('#' + status + '_table').dataTable({
-			"aaSorting": [], // No initial sorting
+			"aaSorting": sortDefs[status],
 			"bProcessing": true, // Show processing icon
 			"bDeferRender": true, // Defer creating TR/TD until needed
 			"aoColumnDefs": columnDefs[status],
 			"bStateSave": true, // Enable cookie for keeping state
 			"aLengthMenu":[5,10,25,50,100],
+			"iDisplayLength": 5,
 		});
 	}
 
