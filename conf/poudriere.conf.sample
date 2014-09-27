@@ -138,6 +138,11 @@ DPORTS_URL=git://github.com/jrmarino/DPorts.git
 # Use the following to allow it anyway
 # ALLOW_MAKE_JOBS=yes
 
+# List of packages that will always be allowed to use MAKE_JOBS
+# regardless of ALLOW_MAKE_JOBS. This is useful for allowing ports
+# which holdup the rest of the queue to build more quickly.
+#ALLOW_MAKE_JOBS_PACKAGES="pkg ccache py*"
+
 # Timestamp every line of build logs
 # Default: no
 #TIMESTAMP_LOGS=no
@@ -146,6 +151,7 @@ DPORTS_URL=git://github.com/jrmarino/DPorts.git
 # This will be used for giving URL hints to the HTML output when
 # scheduling and starting builds
 #URL_BASE=http://yourdomain.com/poudriere/
+
 
 # This defines the max time (in seconds) that a command may run for a build
 # before it is killed for taking too long. Default: 86400
@@ -186,3 +192,39 @@ DPORTS_URL=git://github.com/jrmarino/DPorts.git
 # packaged to permit testing dependent ports (useful for bulk -t -a)
 # Default: yes
 #PORTTESTING_FATAL=yes
+
+# Define the building jail hostname to be used when building the packages
+# Some port/packages hardcode the hostname of the host during build time
+# This is a necessary setup for reproducible builds.
+#BUILDER_HOSTNAME=pkg.dragonflybsd.org
+
+# Define to get a predictable timestamp on the ports tree
+# This is a necessary setup for reproducible builds.
+#PRESERVE_TIMESTAMP=yes
+
+# Define to yes to build and stage as a regular user
+# Default: no
+#BUILD_AS_NON_ROOT=yes
+
+# Define pkgname globs to boost priority for
+# Default: none
+#PRIORITY_BOOST="pypy openoffice*"
+
+# Define format for buildnames
+# Default: %Y-%m-%d_%Hh%Mm%Ss
+# ISO8601:
+#BUILDNAME_FORMAT="%FT%TZ"
+
+# Define format for build duration times
+# Default: %H:%M:%S
+#DURATION_FORMAT="%H:%M:%S"
+
+# Use colors when in a TTY
+# Default: yes
+#USE_COLORS=yes
+
+# Only build what is requested. Do not rebuild build deps if nothing requested
+# depends on them. This can create an inconsistent repository if you often
+# build one-off packages but expect the repository to stay consistent.
+# Defaut: yes
+#TRIM_ORPHANED_BUILD_DEPS=yes

@@ -33,7 +33,12 @@ POUDRIERE_VERSION="3.1-pre"
 
 usage() {
 	cat << EOF
-Usage: poudriere [-e etcdir] command [options]
+Usage: poudriere [-e etcdir] [-N] command [options]
+
+Options:
+    -e etcdir   -- Specify an alternate etc/ dir where poudriere configuration
+                   resides.
+    -N          -- Disable colors
 
 Commands:
     bulk        -- Generate packages for given ports
@@ -54,7 +59,7 @@ EOF
 }
 
 SETX=""
-while getopts "e:x" FLAG; do
+while getopts "e:Nx" FLAG; do
         case "${FLAG}" in
 		e)
 			if [ ! -d "$OPTARG" ]; then
@@ -62,6 +67,9 @@ while getopts "e:x" FLAG; do
 				exit 1
 			fi
 			export POUDRIERE_ETC=$OPTARG
+			;;
+		N)
+			USE_COLORS="no"
 			;;
                 x)
                         SETX="-x"
@@ -84,6 +92,7 @@ CMD=$1
 shift
 CMD_ENV="PATH=${PATH} POUDRIERE_VERSION=${POUDRIERE_VERSION}"
 [ -n "${POUDRIERE_ETC}" ] && CMD_ENV="${CMD_ENV} POUDRIERE_ETC=${POUDRIERE_ETC}"
+[ -n "${USE_COLORS}" ] && CMD_ENV="${CMD_ENV} USE_COLORS=${USE_COLORS}"
 
 # Handle special-case commands first.
 case "${CMD}" in
@@ -97,12 +106,12 @@ case "${CMD}" in
 	jails)
 		CMD="jail"
 		;;
-	options|testport)
+	options|testport|bulk)
 		CMD_ENV="${CMD_ENV} SAVED_TERM=${SAVED_TERM}"
 esac
 
 case "${CMD}" in
-	bulk|combo|distclean|daemon|jail|ports|options|pkgclean|queue|status|testport)
+	api|bulk|combo|distclean|daemon|jail|ports|options|pkgclean|queue|status|testport)
 		;;
 	*)
 		echo "Unknown command '${CMD}'"

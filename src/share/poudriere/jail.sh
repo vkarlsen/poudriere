@@ -195,6 +195,11 @@ info_jail() {
 	unset POUDRIERE_BUILD_TYPE
 }
 
+
+check_emulation() {
+	#do nothing on DragonFly
+}
+
 SCRIPTPATH=`realpath $0`
 SCRIPTPREFIX=`dirname ${SCRIPTPATH}`
 . ${SCRIPTPREFIX}/common.sh
@@ -233,10 +238,10 @@ while getopts "iJ:j:v:z:m:n:M:sdlqcip:r:ut:z:P:Q" FLAG; do
 			;;
 		a)
 			# Option masked on DF
-
 			ARCH=${OPTARG}
 			# If TARGET=TARGET_ARCH trim it away and just use
 			# TARGET_ARCH
+			[ "${ARCH%.*}" = "${ARCH#*.}" ] && ARCH="${ARCH#*.}"
 			;;
 		m)
 			METHOD=${OPTARG}
@@ -317,6 +322,7 @@ case "${CREATE}${INFO}${LIST}${STOP}${START}${DELETE}${UPDATE}${RENAME}" in
 		test -z ${VERSION} && usage VERSION
 		jail_exists ${JAILNAME} && \
 		    err 2 "The jail ${JAILNAME} already exists"
+		check_emulation
 		maybe_run_queued "${saved_argv}"
 		create_jail
 		;;
@@ -351,6 +357,7 @@ case "${CREATE}${INFO}${LIST}${STOP}${START}${DELETE}${UPDATE}${RENAME}" in
 		maybe_run_queued "${saved_argv}"
 		jail_runs ${JAILNAME} && \
 		    err 1 "Unable to update jail ${JAILNAME}: it is running"
+		check_emulation
 		update_jail ${QUICK}
 		;;
 	00000001)

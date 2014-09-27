@@ -1,0 +1,403 @@
+#!/bin/sh
+# FREEBSD SPECIFIC DEFINITIONS
+
+NULLMOUNT="/sbin/mount -t nullfs"
+NULLFSREF="nullfs"
+TMPFS_WRKDIR=0
+TMPFS_DATA=0
+TMPFS_ALL=0
+TMPFS_LOCALBASE=0
+
+# zfs namespace
+NS="poudriere"
+IPS="$(sysctl -n kern.features.inet 2>/dev/null || echo 0)$(sysctl -n kern.features.inet6 2>/dev/null || echo 0)"
+JAILED=$(sysctl -n security.jail.jailed)
+
+injail() {
+	local name
+
+	_my_name name
+	jexec -U ${JUSER:-root} ${name}${JNETNAME:+-${JNETNAME}} \
+	    ${MAX_MEMORY_JEXEC} "$@"
+}
+
+jstart() {
+	local name network
+
+	network="${localipargs}"
+
+	[ "${RESTRICT_NETWORKING}" = "yes" ] || network="${ipargs}"
+
+	_my_name name
+	jail -c persist name=${name} \
+		path=${MASTERMNT}${MY_JOBID+/../${MY_JOBID}} \
+		host.hostname=${BUILDER_HOSTNAME-${name}} \
+		${network} \
+		allow.socket_af allow.raw_sockets allow.chflags allow.sysvipc
+	jail -c persist name=${name}-n \
+		path=${MASTERMNT}${MY_JOBID+/../${MY_JOBID}} \
+		host.hostname=${BUILDER_HOSTNAME-${name}} \
+		${ipargs} \
+		allow.socket_af allow.raw_sockets allow.chflags allow.sysvipc
+	if ! injail id ${PORTBUILD_USER} >/dev/null 2>&1 ; then
+		msg_n "Creating user/group ${PORTBUILD_USER}"
+		injail pw groupadd ${PORTBUILD_USER} -g 65532 || \
+		err 1 "Unable to create group ${PORTBUILD_USER}"
+		injail pw useradd ${PORTBUILD_USER} -u 65532 -d /nonexistent -c "Package builder" || \
+		err 1 "Unable to create user ${PORTBUILD_USER}"
+		echo " done"
+	fi
+}
+
+jkill() {
+	injail kill -9 -1 2>/dev/null || :
+}
+
+jstop() {
+	local name
+
+	_my_name name
+	jail -r ${name} 2>/dev/null || :
+	jail -r ${name}-n 2>/dev/null || :
+}
+
+jail_runs() {
+	[ $# -ne 1 ] && eargs jail_runs jname
+	local jname=$1
+	jls -j $jname >/dev/null 2>&1 && return 0
+	return 1
+}
+
+jail_start() {
+	[ $# -lt 2 ] && eargs jail_start name ptname setname
+	local name=$1
+	local ptname=$2
+	local setname=$3
+	local portsdir
+	local arch host_arch
+	local mnt
+	local needfs="${NULLFSREF}"
+	local needkld
+	local tomnt
+
+	if [ -n "${MASTERMNT}" ]; then
+		tomnt="${MASTERMNT}"
+	else
+		_mastermnt tomnt
+	fi
+	_pget portsdir ${ptname} mnt
+	_jget arch ${name} arch
+	get_host_arch host_arch
+	_jget mnt ${name} mnt
+
+	JAIL_OSVERSION=$(awk '/\#define __FreeBSD_version/ { print $3 }' "${mnt}/usr/include/sys/param.h")
+
+	[ ${JAIL_OSVERSION} -lt 900000 ] && needkld="${needkld} sem"
+
+	[ -d ${DISTFILES_CACHE:-/nonexistent} ] || err 1 "DISTFILES_CACHE directory does not exist. (c.f. poudriere.conf)"
+	[ ${TMPFS_ALL} -ne 1 ] && [ $(sysctl -n kern.securelevel) -ge 1 ] && \
+	    err 1 "kern.securelevel >= 1. Poudriere requires no securelevel to be able to handle schg flags. USE_TMPFS=all can override this."
+
+	if [ -z "${NOLINUX}" ]; then
+		if [ "${arch}" = "i386" -o "${arch}" = "amd64" ]; then
+			needfs="${needfs} linprocfs"
+			sysctl -n compat.linux.osrelease >/dev/null 2>&1 || kldload linux
+		fi
+	fi
+	[ -n "${USE_TMPFS}" ] && needfs="${needfs} tmpfs"
+	[ "${USE_PROCFS}" = "yes" ] && needfs="${needfs} procfs"
+	[ "${USE_FDESCFS}" = "yes" ] && \
+	    [ ${JAILED} -eq 0 -o "${PATCHED_FS_KERNEL}" = "yes" ] && \
+	    needfs="${needfs} fdescfs"
+	for fs in ${needfs}; do
+		if ! lsvfs $fs >/dev/null 2>&1; then
+			if [ $JAILED -eq 0 ]; then
+				kldload $fs || err 1 "Required kernel module '${fs}' not found"
+			else
+				err 1 "please load the $fs module on host using \"kldload $fs\""
+			fi
+		fi
+	done
+	for kld in ${needkld}; do
+		if ! kldstat -q -m ${kld} ; then
+			if [ $JAILED -eq 0 ]; then
+				kldload ${kld} || err 1 "Required kernel module '${kld}' not found"
+			else
+				err 1 "Please load the ${kld} module on the host using \"kldload ${kld}\""
+			fi
+		fi
+	done
+	jail_exists ${name} || err 1 "No such jail: ${name}"
+	jail_runs ${MASTERNAME} && err 1 "jail already running: ${MASTERNAME}"
+
+	# Block the build dir from being traversed by non-root to avoid
+	# system blowup due to all of the extra mounts
+	mkdir -p ${MASTERMNT%/ref}
+	chmod 0755 ${POUDRIERE_DATA}/.m
+	chmod 0711 ${MASTERMNT%/ref}
+
+	export HOME=/root
+	export USER=root
+	[ -z "${NO_FORCE_PACKAGE}" ] && export FORCE_PACKAGE=yes
+	[ -z "${NO_PACKAGE_BUILDING}" ] && export PACKAGE_BUILDING=yes
+
+	[ ${SET_STATUS_ON_START-1} -eq 1 ] && export STATUS=1
+	msg_n "Creating the reference jail..."
+	echo "src" >> ${mnt}/usr/.cpignore
+	echo "debug" >> ${mnt}/usr/lib/.cpignore
+	clonefs ${mnt} ${tomnt} clean
+	echo ".p" >> ${tomnt}/.cpignore
+	rm -f ${mnt}/usr/.cpignore ${mnt}/usr/lib/.cpignore
+	echo " done"
+
+	if [ ${JAIL_OSVERSION} -gt ${HOST_OSVERSION} ]; then
+		msg_warn "!!! Jail is newer than host. (Jail: ${JAIL_OSVERSION}, Host: ${HOST_OSVERSION}) !!!"
+		msg_warn "This is not supported."
+		msg_warn "Host kernel must be same or newer than jail."
+		msg_warn "Expect build failures."
+		sleep 1
+	fi
+
+	msg "Mounting system devices for ${MASTERNAME}"
+	do_jail_mounts "${mnt}" "${tomnt}" ${arch}
+
+	PACKAGES=${POUDRIERE_DATA}/packages/${MASTERNAME}
+
+	[ -d "${portsdir}/ports" ] && portsdir="${portsdir}/ports"
+	msg "Mounting ports/packages/distfiles"
+
+	mkdir -p ${PACKAGES}/
+	was_a_bulk_run && stash_packages
+
+	do_portbuild_mounts ${tomnt} ${name} ${ptname} ${setname}
+
+	# Check TARGET=i386 not TARGET_ARCH due to pc98/i386
+	if [ "${arch%.*}" = "i386" -a "${host_arch}" = "amd64" ]; then
+		cat >> "${tomnt}/etc/make.conf" <<-EOF
+		ARCH=i386
+		MACHINE=i386
+		MACHINE_ARCH=i386
+		EOF
+	fi
+
+	if [ -d "${CCACHE_DIR:-/nonexistent}" ]; then
+		cat >> "${tomnt}/etc/make.conf" <<-EOF
+		WITH_CCACHE_BUILD=yes
+		CCACHE_DIR=${HOME}/.ccache
+		EOF
+	fi
+
+	cat >> "${tomnt}/etc/make.conf" <<-EOF
+	USE_PACKAGE_DEPENDS=yes
+	BATCH=yes
+	WRKDIRPREFIX=/wrkdirs
+	PORTSDIR=/usr/ports
+	PACKAGES=/packages
+	DISTDIR=/distfiles
+	EOF
+
+	setup_makeconf ${tomnt}/etc/make.conf ${name} ${ptname} ${setname}
+	load_blacklist ${name} ${ptname} ${setname}
+
+	[ -n "${RESOLV_CONF}" ] && cp -v "${RESOLV_CONF}" "${tomnt}/etc/"
+	msg "Starting jail ${MASTERNAME}"
+	jstart
+	# Only set STATUS=1 if not turned off
+	# jail -s should not do this or jail will stop on EXIT
+	WITH_PKGNG=$(injail make -f /usr/ports/Mk/bsd.port.mk -V WITH_PKGNG)
+	if [ -n "${WITH_PKGNG}" ]; then
+		PKGNG=1
+		PKG_EXT="txz"
+		PKG_BIN="/.p/pkg-static"
+		PKG_ADD="${PKG_BIN} add"
+		PKG_DELETE="${PKG_BIN} delete -y -f"
+		PKG_VERSION="${PKG_BIN} version"
+
+		[ -n "${PKG_REPO_SIGNING_KEY}" ] &&
+			! [ -f "${PKG_REPO_SIGNING_KEY}" ] &&
+			err 1 "PKG_REPO_SIGNING_KEY defined but the file is missing."
+	else
+		PKGNG=0
+		PKG_ADD=pkg_add
+		PKG_DELETE=pkg_delete
+		PKG_VERSION=pkg_version
+		PKG_EXT="tbz"
+	fi
+
+	# 8.3 did not have distrib-dirs ran on it, so various
+	# /usr and /var dirs are missing. Namely /var/games
+	if [ "$(injail uname -r | cut -d - -f 1 )" = "8.3" ]; then
+		injail mtree -eu -f /etc/mtree/BSD.var.dist -p /var >/dev/null 2>&1 || :
+		injail mtree -eu -f /etc/mtree/BSD.usr.dist -p /usr >/dev/null 2>&1 || :
+	fi
+
+	run_hook jail start
+
+	return 0
+}
+
+jail_stop() {
+	[ $# -ne 0 ] && eargs jail_stop
+	local last_status
+
+	jstop || :
+	# Shutdown all builders
+	if [ ${PARALLEL_JOBS} -ne 0 ]; then
+		# - here to only check for unset, {start,stop}_builders will set this to blank if already stopped
+		for j in ${JOBS-$(jot -w %02d ${PARALLEL_JOBS})}; do
+			MY_JOBID=${j} jstop
+			destroyfs ${MASTERMNT}/../${j} jail || :
+		done
+	fi
+	msg "Umounting file systems"
+	destroyfs ${MASTERMNT} jail || :
+	rm -rf ${MASTERMNT}/../
+	export STATUS=0
+
+	# Don't override if there is a failure to grab the last status.
+	_bget last_status status 2>/dev/null || :
+	[ -n "${last_status}" ] && bset status "stopped:${last_status}" \
+	    2>/dev/null || :
+}
+
+do_jail_mounts() {
+	[ $# -ne 3 ] && eargs do_jail_mounts from mnt arch
+	local from="$1"
+	local mnt="$2"
+	local arch="$3"
+	local devfspath="null zero random urandom stdin stdout stderr fd fd/* bpf* pts pts/*"
+
+	# clone will inherit from the ref jail
+	if [ ${mnt##*/} = "ref" ]; then
+		mkdir -p ${mnt}/proc \
+		    ${mnt}/dev \
+		    ${mnt}/compat/linux/proc \
+		    ${mnt}/usr/ports \
+		    ${mnt}/usr/src \
+		    ${mnt}/wrkdirs \
+		    ${mnt}/${LOCALBASE:-/usr/local} \
+		    ${mnt}/distfiles \
+		    ${mnt}/packages \
+		    ${mnt}/.npkg \
+		    ${mnt}${HOME}/.ccache \
+		    ${mnt}/var/db/ports
+	fi
+
+	# Mount /usr/src into target, no need for anything to write to it
+	[ -d "${from}/usr/src" -a "${from}" != "${mnt}" ] && \
+	    ${NULLMOUNT} -o ro ${from}/usr/src ${mnt}/usr/src
+
+	# ref jail only needs devfs
+	mount -t devfs devfs ${mnt}/dev
+	if [ ${JAILED} -eq 0 ]; then
+		devfs -m ${mnt}/dev rule apply hide
+		for p in ${devfspath} ; do
+			devfs -m ${mnt}/dev/ rule apply path "${p}" unhide
+		done
+	fi
+
+	# Only do this in cloned build jails. from==mnt is via jail -u
+	if [ "${mnt##*/}" != "ref" -a "${from}" != "${mnt}" ]; then
+		[ "${USE_FDESCFS}" = "yes" ] && \
+		    [ ${JAILED} -eq 0 -o "${PATCHED_FS_KERNEL}" = "yes" ] && \
+		    mount -t fdescfs fdesc ${mnt}/dev/fd
+		[ "${USE_PROCFS}" = "yes" ] && mount -t procfs proc ${mnt}/proc
+		if [ -z "${NOLINUX}" ]; then
+			[ "${arch}" = "i386" -o "${arch}" = "amd64" ] &&
+				mount -t linprocfs linprocfs ${mnt}/compat/linux/proc
+		fi
+	fi
+
+	return 0
+}
+
+start_builders() {
+	local arch=$(injail uname -p)
+
+	bset builders "${JOBS}"
+	bset status "starting_builders:"
+	parallel_start
+	for j in ${JOBS}; do
+		parallel_run start_builder ${j} ${arch}
+	done
+	parallel_stop
+}
+
+stop_builders() {
+	local mnt
+
+	# wait for the last running processes
+	cat ${MASTERMNT}/.p/var/run/*.pid 2>/dev/null | xargs pwait 2>/dev/null
+
+	msg "Stopping ${PARALLEL_JOBS} builders"
+
+	for j in ${JOBS}; do
+		MY_JOBID=${j} jstop
+		destroyfs ${MASTERMNT}/../${j} jail
+	done
+
+	# No builders running, unset JOBS
+	JOBS=""
+}
+
+cleanup() {
+	local wait_pids
+
+	[ -n "${CLEANED_UP}" ] && return 0
+	msg "Cleaning up"
+
+	# Only bother with this if using jails as this may be being ran
+	# from queue.sh or daemon.sh, etc.
+	if [ -n "${MASTERMNT}" -a -n "${MASTERNAME}" ] && was_a_jail_run; then
+		# If this is a builder, don't cleanup, the master will handle that.
+		if [ -n "${MY_JOBID}" ]; then
+			[ -n "${PKGNAME}" ] && clean_pool ${PKGNAME} "" "failed" || :
+			return 0
+		fi
+
+		if [ -d ${MASTERMNT}/.p/var/run ]; then
+			for pid in ${MASTERMNT}/.p/var/run/*.pid; do
+				# Ensure there is a pidfile to read or break
+				[ "${pid}" = "${MASTERMNT}/.p/var/run/*.pid" ] && break
+				pkill -15 -F ${pid} >/dev/null 2>&1 || :
+				wait_pids="${wait_pids} ${pid}"
+			done
+			_wait ${wait_pids} || :
+		fi
+
+		jail_stop
+
+		rm -rf \
+		    ${PACKAGES}/.npkg \
+		    ${POUDRIERE_DATA}/packages/${MASTERNAME}/.latest/.npkg \
+		    2>/dev/null || :
+
+	fi
+
+	rmdir /tmp/.poudriere-lock-$$-* 2>/dev/null || :
+
+	export CLEANED_UP=1
+}
+
+stop_build() {
+	[ $# -eq 2 ] || eargs stop_build portdir build_failed
+	local portdir="$1"
+	local build_failed="$2"
+	local mnt
+
+	_my_path mnt
+	umount -f ${mnt}/.npkg 2>/dev/null || :
+	rm -rf "${PACKAGES}/.npkg/${PKGNAME}"
+
+	# 2 = HEADER+ps itself
+	if [ $(injail ps aux | wc -l) -ne 2 ]; then
+		msg_warn "Leftover processes:"
+		injail ps auxwwd | grep -v 'ps auxwwd'
+	fi
+
+	# Always kill to avoid missing anything
+	jkill
+
+	buildlog_stop ${portdir} ${build_failed}
+	log_stop
+}
