@@ -110,7 +110,7 @@ jail_start() {
 
 	[ -d "${portsdir}/ports" ] && portsdir=${portsdir}/ports
 	msg "Mounting ports/packages/distfiles"
-	
+
 	was_a_bulk_run && stash_packages
 
 	do_portbuild_mounts ${MASTERMNT} ${name} ${ptname} ${setname}
@@ -148,11 +148,11 @@ jail_stop() {
 	msg "Umounting file systems"
 	mnt=${MASTERMNT%/ref}
 	mount | awk -v mnt="${mnt}" "${AWKCMD1}" |  sort -r | xargs umount || :
-	
+
 	# We don't want to continue umounting /ref if had any failures so
 	# far.  Let's check for mounts, and try 3 more times with 30 second
 	# intervals
-	
+
 	for verify in A B C; do
 		rem=$(mount | awk -v mnt="${mnt}" "${AWKCMD1}" | sort -r)
 		if [ -z "${rem}" ]; then
@@ -163,7 +163,7 @@ jail_stop() {
 		    umount ${rem} || :
 		fi
 	done
-	
+
 	mount | awk -v mnt="${mnt}" "${AWKCMD2}" |  sort -r | xargs umount || :
 
 	export STATUS=0

@@ -202,7 +202,7 @@ CLEANUP_HOOK=bulk_cleanup
 read_packages_from_params "$@"
 
 
-#madvise_protect $$
+madvise_protect $$
 jail_start ${JAILNAME} ${PTNAME} ${SETNAME}
 
 _log_path LOGD

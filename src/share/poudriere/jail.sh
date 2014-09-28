@@ -344,7 +344,11 @@ case "${CREATE}${INFO}${LIST}${STOP}${START}${DELETE}${UPDATE}${RENAME}" in
 		test -z ${JAILNAME} && usage JAILNAME
 		porttree_exists ${PTNAME} || err 2 "No such ports tree ${PTNAME}"
 		maybe_run_queued "${saved_argv}"
-		start_a_jail
+		export MASTERNAME=${JAILNAME}-${PTNAME}${SETNAME:+-${SETNAME}}
+		_mastermnt MASTERMNT
+		export MASTERMNT
+		jail_start ${JAILNAME} ${PTNAME} ${SETNAME}
+		JNETNAME="n"
 		;;
 	00000100)
 		test -z ${JAILNAME} && usage JAILNAME

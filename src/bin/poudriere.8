@@ -238,8 +238,16 @@ These subcommands are mutually exclusive.
 Creates a jail.
 .It Fl d
 Deletes a jail.
+.It Fl i
+Show information about a jail.
+See also
+.Cm status .
 .It Fl l
 List all available jails.
+.It Fl n
+When combined with
+.Fl l ,
+only display jail name.
 .It Fl s
 Starts a jail (chroot).
 .It Fl u
@@ -281,10 +289,18 @@ of
 Gives an alternative
 .Ar mountpoint
 when creating jail.
+.It Fl p Ar name
+This specifies which port tree to start/stop the jail with.
+.It Fl P Ar patch
+Apply the specified
+.Ar patch
+to the source tree before building the jail.
 .It Fl t Ar version
 instead of upgrading to the latest security fix of the jail version, you can
 jump to the new specified
 .Ar version .
+.It Fl z Ar set
+This specifies which SET to start/stop the jail with.
 .El
 .Ss combo
 .pp

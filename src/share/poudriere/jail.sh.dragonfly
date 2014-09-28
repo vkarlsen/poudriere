@@ -211,12 +211,3 @@ EOF
 	unset CLEANUP_HOOK
 	msg "Jail ${JAILNAME} ${VERSION} ${ARCH} is ready to be used"
 }
-
-start_a_jail() {
-	export MASTERNAME=${JAILNAME}-${PTNAME}${SETNAME:+-${SETNAME}}
-	_mastermnt MASTERMNT
-	export MASTERMNT
-	jail_start ${JAILNAME} ${PTNAME} ${SETNAME}
-	msg "Entering interactive mode. Type 'exit' when done."
-	injail /bin/tcsh
-}

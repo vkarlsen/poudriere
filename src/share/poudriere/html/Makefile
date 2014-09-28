@@ -1,7 +1,0 @@
-SUBDIR=		assets
-NO_OBJ=		yes
-PREFIX?=	/usr/local
-FILESDIR=	${PREFIX}/share/poudriere/html
-FILES=		index.html
-
-.include <bsd.prog.mk>

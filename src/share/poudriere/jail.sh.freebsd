@@ -442,14 +442,6 @@ create_jail() {
 	msg "Jail ${JAILNAME} ${VERSION} ${ARCH} is ready to be used"
 }
 
-start_a_jail() {
-	export MASTERNAME=${JAILNAME}-${PTNAME}${SETNAME:+-${SETNAME}}
-	_mastermnt MASTERMNT
-	export MASTERMNT
-	jail_start ${JAILNAME} ${PTNAME} ${SETNAME}
-	JNETNAME="n"
-}
-
 setup_compat_env() {
 	local osversion hostver
 

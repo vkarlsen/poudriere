@@ -270,7 +270,7 @@ if [ ${ret} -ne 0 ]; then
 	update_stats || :
 
 	if [ ${INTERACTIVE_MODE} -eq 0 ]; then
-		stop_build /usr/ports/${ORIGIN} 1
+		stop_build "${PKGNAME}" ${ORIGIN} 1
 		bset_job_status "failed/${failed_phase}" "${ORIGIN}"
 		msg_error "Build failed in phase: ${COLOR_PHASE}${failed_phase}${COLOR_RESET}"
 		cleanup
@@ -354,7 +354,7 @@ msg "Deinstalling package"
 ensure_pkg_installed
 injail ${PKG_DELETE} ${PKGNAME}
 
-stop_build /usr/ports/${ORIGIN} ${ret}
+stop_build "${PKGNAME}" ${ORIGIN} ${ret}
 
 bset_job_status "stopped" "${ORIGIN}"
 
@@ -366,5 +366,5 @@ set +e
 run_hook testport_ended \
 	ORIGIN=${ORIGIN} \
 	RESULT=${build_result}
-	
+
 exit 0

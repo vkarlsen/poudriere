@@ -153,7 +153,7 @@ cleanup_new_ports() {
 generate_makefiles() {
 	msg "Generating ports top level and category makefiles."
 	local CATEGORIES ALLPORTS CAT LVL2
-	
+
 	CATEGORIES=$(cd ${PTMNT} && find -s * -type d -depth 0 -maxdepth 0 \
 		-not -name \[A-Z\]\*)
 	rm -f ${PTMNT}/Makefile

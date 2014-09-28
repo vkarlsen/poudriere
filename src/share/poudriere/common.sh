@@ -96,8 +96,14 @@ err() {
 	fi
 	# Try to set status so other processes know this crashed
 	# Don't set it from children failures though, only master
-	[ -z "${PARALLEL_CHILD}" ] && was_a_bulk_run &&
-		bset status "${EXIT_STATUS:-crashed:}" 2>/dev/null || :
+	if [ -z "${PARALLEL_CHILD}" ] && was_a_bulk_run; then
+		if [ -n "${MY_JOBID}" ]; then
+			bset ${MY_JOBID} status "${EXIT_STATUS:-crashed:}" \
+			    2>/dev/null || :
+		else
+			bset status "${EXIT_STATUS:-crashed:}" 2>/dev/null || :
+		fi
+	fi
 	msg_error "$2" || :
 	# Avoid recursive err()->exit_handler()->err()... Just let
 	# exit_handler() cleanup.
@@ -132,10 +138,17 @@ msg_verbose() {
 }
 
 msg_error() {
-	COLOR_ARROW="${COLOR_ERROR}" \
-	    msg "${COLOR_ERROR}Error: $1" >&2
-	[ -n "${MY_JOBID}" ] && COLOR_ARROW="${COLOR_ERROR}" \
-	    job_msg "${COLOR_ERROR}Error: $1"
+	if [ -n "${MY_JOBID}" ]; then
+		# Send colored msg to bulk log...
+		COLOR_ARROW="${COLOR_ERROR}" job_msg "${COLOR_ERROR}Error: $1"
+		# And non-colored to buld log
+		msg "Error: $1" >&2
+	elif [ ${OUTPUT_REDIRECTED:-0} -eq 1 ]; then
+		# Send to true stderr
+		COLOR_ARROW="${COLOR_ERROR}" msg "${COLOR_ERROR}Error: $1" >&4
+	else
+		COLOR_ARROW="${COLOR_ERROR}" msg "${COLOR_ERROR}Error: $1" >&2
+	fi
 	return 0
 }
 
@@ -162,7 +175,7 @@ job_msg() {
 		    >&5
 	elif [ ${OUTPUT_REDIRECTED:-0} -eq 1 ]; then
 		# Send to true stdout (not any build log)
-		msg "$@" >&4
+		msg "$@" >&3
 	else
 		msg "$@"
 	fi
@@ -384,9 +397,10 @@ buildlog_start() {
 }
 
 buildlog_stop() {
-	[ $# -eq 2 ] || eargs buildlog_stop portdir build_failed
-	local portdir=$1
-	local build_failed="$2"
+	[ $# -eq 3 ] || eargs buildlog_stop pkgname origin build_failed
+	local pkgname="$1"
+	local origin=$2
+	local build_failed="$3"
 	local log
 	local buildtime
 
@@ -400,7 +414,7 @@ buildlog_stop() {
 		awk -F'!' '{print $2}' \
 	)
 
-	echo "build of ${portdir} ended at $(date)"
+	echo "build of ${origin} ended at $(date)"
 	echo "build time: ${buildtime}"
 	[ ${build_failed} -gt 0 ] && echo "!!! build failure encountered !!!"
 
@@ -943,6 +957,7 @@ markfs() {
 		echo " done"
 		return 0
 	fi
+	# XXX: Is this needed?
 	mkdir -p ${mnt}/.p/
 
 	case "${name}" in
@@ -1132,7 +1147,7 @@ do_portbuild_mounts() {
 	${NULLMOUNT} -o ro ${portsdir} ${mnt}/usr/ports ||
 		err 1 "Failed to mount the ports directory "
 	mkdir -p ${PACKAGES}/All ${PACKAGES}/Latest
-	mount_packages 
+	mount_packages
 	${NULLMOUNT} ${DISTFILES_CACHE} ${mnt}/distfiles ||
 		err 1 "Failed to mount the distfiles cache directory"
 
@@ -2069,7 +2084,7 @@ save_wrkdir() {
 deadlock_detected() {
 	local always_fail=${1:-1}
 	local crashed_packages dependency_cycles deps pkgname origin
-	local failed_phase log
+	local failed_phase
 
 	# If there are still packages marked as "building" they have crashed
 	# and it's likely some poudriere or system bug
@@ -2111,21 +2126,8 @@ ${dependency_cycles}"
 
 	if [ -n "${dead_packages}" ]; then
 		failed_phase="stuck_in_queue"
-		_log_path log
 		for pkgname in ${dead_packages}; do
-			cache_get_origin origin "${pkgname}"
-			# Symlink the buildlog into errors/
-			[ -f "${log}/logs/${pkgname}.log" ] || \
-			    echo "Build failed: ${failed_phase}" >> \
-			    "${log}/logs/${pkgname}.log"
-			ln -s "../${pkgname}.log" "${log}/logs/errors/${pkgname}.log"
-			badd ports.failed "${origin} ${pkgname} ${failed_phase} ${failed_phase}"
-			COLOR_ARROW="${COLOR_FAIL}" msg \
-			    "${COLOR_FAIL}Finished build of ${COLOR_PORT}${origin}${COLOR_FAIL}: Failed: ${COLOR_PHASE}${failed_phase}"
-			run_hook pkgbuild failed "${origin}" "${pkgname}" \
-			    "${failed_phase}" \
-			    "${log}/logs/errors/${pkgname}.log"
-			clean_pool "${pkgname}" "${origin}" "${failed_phase}" 
+			crashed_build "${pkgname}" "${failed_phase}"
 		done
 		return 0
 	fi
@@ -2190,10 +2192,12 @@ build_queue() {
 				rm -f ${MASTERMNT}/.p/var/run/${j}.pid \
 					${MASTERMNT}/.p/var/run/${j}.pkgname
 				_bget status ${j} status
+				mark_done ${pkgname}
 				if [ "${status%%:*}" = "done" ]; then
-					mark_done ${pkgname}
 					bset ${j} status "idle:"
 				else
+					crashed_build "${pkgname}" \
+					    "${status%%:*}"
 					bset ${j} status "crashed:"
 				fi
 			fi
@@ -2365,6 +2369,28 @@ parallel_build() {
 	return 0
 }
 
+crashed_build() {
+	[ $# -eq 2 ] || eargs crashed_build pkgname failed_phase
+	local pkgname="$1"
+	local failed_phase="$2"
+	local origin log
+
+	_log_path log
+	cache_get_origin origin "${pkgname}"
+
+	echo "Build failed: ${failed_phase}" >> "${log}/logs/${pkgname}.log"
+	# Symlink the buildlog into errors/
+	ln -s "../${pkgname}.log" "${log}/logs/errors/${pkgname}.log"
+	badd ports.failed "${origin} ${pkgname} ${failed_phase} ${failed_phase}"
+	COLOR_ARROW="${COLOR_FAIL}" msg \
+	    "${COLOR_FAIL}Finished build of ${COLOR_PORT}${origin}${COLOR_FAIL}: Failed: ${COLOR_PHASE}${failed_phase}"
+	run_hook pkgbuild failed "${origin}" "${pkgname}" \
+	    "${failed_phase}" \
+	    "${log}/logs/errors/${pkgname}.log"
+	clean_pool "${pkgname}" "${origin}" "${failed_phase}"
+	stop_build "${pkgname}" "${origin}" 1 >> "${log}/logs/${pkgname}.log"
+}
+
 clean_pool() {
 	[ $# -ne 3 ] && eargs clean_pool pkgname origin clean_rdepends
 	local pkgname=$1
@@ -2495,6 +2521,7 @@ build_pkg() {
 				ORIGIN="${port}" \
 				PKGNAME="${PKGNAME}"
 			# Cache information for next run
+			# XXX: Make this async for processing in another thread.
 			pkg_cache_data "${PACKAGES}/All/${PKGNAME}.${PKG_EXT}" ${port} || :
 		else
 			# Symlink the buildlog into errors/
@@ -2525,7 +2552,7 @@ build_pkg() {
 
 	clean_pool ${PKGNAME} ${port} "${clean_rdepends}"
 
-	stop_build ${portdir} ${build_failed}
+	stop_build "${PKGNAME}" ${port} ${build_failed}
 	destroy_slave ${MY_JOBID}
 
 	bset ${MY_JOBID} status "done:"
@@ -2543,6 +2570,7 @@ mangle_stderr() {
 
 	shift 3
 
+	# Must always disable xtrace here or it gets confused
 	set +x
 
 	{
@@ -2711,7 +2739,7 @@ ensure_pkg_installed() {
 
 	_my_path mnt
 	[ ${PKGNG} -eq 1 ] || return 0
-	[ -z "${force}" ] && [ -x "${mnt}/.p/pkg-static" ] && return 0
+	[ -z "${force}" ] && [ -x "${mnt}${PKG_BIN}" ] && return 0
 	[ -e ${MASTERMNT}/packages/Latest/pkg.txz ] || return 1 #pkg missing
 	injail tar xf /packages/Latest/pkg.txz -C / \
 		-s ",/.*/,.p/,g" "*/pkg-static"
@@ -2936,7 +2964,7 @@ delete_old_pkg() {
 
 delete_old_pkgs() {
 
-	msg_verbose "Checking packages for incremental rebuild needed"
+	msg "Checking packages for incremental rebuild needed"
 
 	package_dir_exists_and_has_packages || return 0
 
@@ -3164,6 +3192,11 @@ compute_deps_port() {
 		echo "${port} ${dep_port}" >> \
 			${MASTERMNT}/.p/port_deps.unsorted
 	done
+
+	[ ${ALL} -eq 0 ] && echo "${port} ${port}" >> \
+	    ${MASTERMNT}/.p/port_deps.unsorted
+
+	return 0
 }
 
 listed_ports() {
@@ -3387,8 +3420,6 @@ prepare_ports() {
 	local cache_dir
 
 	_log_path log
-	mkdir -p "${MASTERMNT}/.p"
-	[ ${TMPFS_DATA} -eq 1 -o ${TMPFS_ALL} -eq 1 ] && mnt_tmpfs data "${MASTERMNT}/.p"
 	rm -rf "${MASTERMNT}/.p/var/cache/origin-pkgname" \
 		"${MASTERMNT}/.p/var/cache/pkgname-origin" 2>/dev/null || :
 	mkdir -p "${MASTERMNT}/.p/building" \
@@ -3651,6 +3682,10 @@ balance_pool() {
 
 	# For everything ready-to-build...
 	for pkg_dir in ${MASTERMNT}/.p/pool/unbalanced/*; do
+		# May be empty due to racing with next_in_queue()
+		case "${pkg_dir}" in
+			"${MASTERMNT}/.p/pool/unbalanced/*") break ;;
+		esac
 		pkgname=${pkg_dir##*/}
 		hash_get "priority" "${pkgname}" dep_count || dep_count=0
 		# This races with next_in_queue(), just ignore failure
@@ -3804,7 +3839,8 @@ else
 fi
 include_poudriere_confs "$@"
 
-LIBEXECPREFIX=$(realpath ${SCRIPTPREFIX}/../../libexec/poudriere)
+: ${LIBEXECPREFIX:=${SCRIPTPREFIX}/../../libexec/poudriere}
+LIBEXECPREFIX=$(realpath ${LIBEXECPREFIX})
 AWKPREFIX=${SCRIPTPREFIX}/awk
 HTMLPREFIX=${SCRIPTPREFIX}/html
 HOOKDIR=${POUDRIERED}/hooks
