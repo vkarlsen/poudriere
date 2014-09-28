@@ -341,9 +341,10 @@ stop_builders() {
 }
 
 stop_build() {
-	[ $# -eq 2 ] || eargs stop_build portdir build_failed
-	local portdir="$1"
-	local build_failed="$2"
+	[ $# -eq 3 ] || eargs stop_build pkgname origin build_failed
+	local pkgname="$1"
+	local origin="$2"
+	local build_failed="$3"
 	local mnt
 
 	_my_path mnt
@@ -356,9 +357,6 @@ stop_build() {
 		injail ps auxwwd | grep -v 'ps auxwwd'
 	fi
 
-	# Always kill to avoid missing anything
-	jkill
-
-	buildlog_stop ${portdir} ${build_failed}
+	buildlog_stop "${pkgname}" ${origin} ${build_failed}
 	log_stop
 }

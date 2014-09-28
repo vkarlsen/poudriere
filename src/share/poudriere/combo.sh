@@ -158,7 +158,9 @@ jail_dismount() {
 }
 
 list_failures() {
-	local FLIST=$(log_path)/last_run.failed
+	local log PLIST
+	_log_path log
+	FLIST=$(log)/last_run.failed
 	if [ -f ${FLIST} ]; then
 	    cat ${FLIST}
 	else
@@ -176,8 +178,8 @@ solo_dep_check() {
 
 delete_old_logs() {
 	[ $# -ne 0 ] && eargs
-	local mnt
-	local BULK_LOG_PATH_LATEST=$(log_path)
+	local mnt BULK_LOG_PATH_LATEST
+	_log_path BULK_LOG_PATH_LATEST
 	local BULK_LOG_PATH=${BULK_LOG_PATH_LATEST%%/latest}
 	local LPP=${BULK_LOG_PATH}/../latest-per-pkg
 	jail_exists ${JAILNAME} || err 1 "No such jail: ${JAILNAME}"

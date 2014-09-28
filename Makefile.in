@@ -83,7 +83,7 @@ POST_UNINSTALL = :
 pkglibexec_PROGRAMS = dirempty$(EXEEXT) \
 	dirwatch$(EXEEXT) nc$(EXEEXT) poudriered$(EXEEXT) \
 	rename$(EXEEXT) timeout$(EXEEXT) timestamp$(EXEEXT) \
-	tsort$(EXEEXT) jexecd$(EXEEXT) rexec$(EXEEXT)
+	tsort$(EXEEXT) rexec$(EXEEXT)
 subdir = .
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/configure $(am__configure_deps) \
@@ -430,10 +430,13 @@ hook_DATA = src/etc/poudriere.d/hooks/bulk.sh.sample \
 
 dist_pkgdata_DATA = src/share/poudriere/bulk.sh \
 			src/share/poudriere/clean.sh \
+			src/share/poudriere/combo.sh \
 			src/share/poudriere/common.sh \
 			src/share/poudriere/daemon.sh \
 			src/share/poudriere/distclean.sh \
 			src/share/poudriere/jail.sh \
+			src/share/poudriere/jail.sh.dragonfly \
+			src/share/poudriere/jail.sh.freebsd \
 			src/share/poudriere/options.sh \
 			src/share/poudriere/pkgclean.sh \
 			src/share/poudriere/ports.sh \

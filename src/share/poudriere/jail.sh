@@ -65,7 +65,7 @@ list_jail() {
 	local format
 	local j name version arch method mnt mntx hack
 
-	format='%%-20s %%-13s %%-17s %%-7s %%-7s %%s'
+	format='%%-%ds %%-%ds %%-%ds %%-%ds %%-%ds %%s'
 	display_setup "${format}" 6 "-d -k2,2 -k3,3 -k1,1"
 	if [ ${NAMEONLY} -eq 0 ]; then
 		display_add "JAILNAME" "VERSION" "LAST-UPDATED" "ARCH" "METHOD" "PATH"
@@ -79,7 +79,7 @@ list_jail() {
 			_jget version ${name} version
 			_jget arch ${name} arch
 			_jget method ${name} method
-			-jget hack ${name} timestamp
+			_jget hack ${name} timestamp
 			_jget mntx ${name} mnt
 			case ${mntx} in
 			    ${BASEFS}/*)
@@ -222,7 +222,7 @@ METHOD=git
 PTNAME=default
 SETNAME=""
 
-while getopts "iJ:j:v:z:m:n:M:sdlqcip:r:ut:z:P:Q" FLAG; do
+while getopts "iJ:j:v:z:m:M:sdlnqcip:r:ut:z:P:Q" FLAG; do
 	case "${FLAG}" in
 		i)
 			INFO=1

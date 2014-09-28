@@ -130,7 +130,7 @@ git);;
 esac
 
 if [ ${LIST} -eq 1 ]; then
-	format='%%-20s %%-17s %%-7s %%s\n'
+	format='%%-%ds %%-%ds %%-%ds %%s\n'
 	display_setup "${format}" 4 "-d"
 	display_add "PORTSTREE" "LAST-UPDATED" "METHOD" "PATH"
 	while read ptname ptmethod pthack ptpath; do

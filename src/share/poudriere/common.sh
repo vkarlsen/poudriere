@@ -827,13 +827,6 @@ jail_exists() {
 	return 1
 }
 
-jail_runs() {
-	[ $# -ne 1 ] && eargs jail_runs jname
-	local jname=$1
-	jls -j $jname >/dev/null 2>&1 && return 0
-	return 1
-}
-
 porttree_list() {
 	local name method mntpoint
 	[ -d ${POUDRIERED}/ports ] || return 0
@@ -2055,7 +2048,7 @@ save_wrkdir() {
 	[ $# -ne 4 ] && eargs save_wrkdir mnt port portdir phase
 	local mnt=$1
 	local port="$2"
-	local portdir="${echo "$3" | sed -e "s|/usr/ports/||g")"
+	local portdir="$(echo "$3" | sed -e "s|/usr/ports/||g")"
 	local phase="$4"
 	local tardir=${POUDRIERE_DATA}/wrkdirs/${MASTERNAME}/${PTNAME}
 	local tarname=${tardir}/${PKGNAME}.${WRKDIR_ARCHIVE_FORMAT}
@@ -2482,9 +2475,6 @@ build_pkg() {
 	log_start 0
 	msg "Building ${port}"
 	buildlog_start ${portdir}
-
-	# Ensure /dev/null exists (kern/139014)
-	[ ${JAILED} -eq 0 ] && devfs -m ${mnt}/dev rule apply path null unhide
 
 	if [ -n "${ignore}" ]; then
 		msg "Ignoring ${port}: ${ignore}"

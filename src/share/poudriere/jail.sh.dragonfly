@@ -143,7 +143,7 @@ install_from_git() {
 	fi
 	mount -t devfs devfs ${JAILMNT}/dev
 	build_and_install_world ${1}
-	chroot ${JAILMNT} ldconfig -elf -i /lib /usr/lib
+	chroot ${JAILMNT} /sbin/ldconfig -m /lib /usr/lib
 	umount ${JAILMNT}/dev
 	bhack="$(date '+%Y-%m-%d/%H:%M')"
 	jset ${JAILNAME} timestamp "${bhack}"

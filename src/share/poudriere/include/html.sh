@@ -61,10 +61,14 @@ build_json() {
 	local log
 
 	_log_path log
-	local pf=${log}/.poudriere
-	local awklist="${pf}.ports.* ${pf}.stat* ${pf}.setname \
-		${pf}.ptname ${pf}.jailname ${pf}.mastername \
-		${pf}.builders ${pf}.buildname"
+	local awklist=$(find $log -name ".poudriere.ports.*" \
+		-o -name ".poudriere.stat*" \
+		-o -name ".poudriere.setname" \
+		-o -name ".poudriere.ptname" \
+		-o -name ".poudriere.jailname" \
+		-o -name ".poudriere.mastername" \
+		-o -name ".poudriere.builders" \
+		-o -name ".poudriere.buildname")
 	awk -v now=$(date +%s) \
 		-f ${AWKPREFIX}/json.awk ${awklist} | \
 		awk 'ORS=""; {print}' | \

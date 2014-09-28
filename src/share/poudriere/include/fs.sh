@@ -49,7 +49,7 @@ umountfs() {
 
 zfs_getfs() {
 	[ $# -ne 1 ] && eargs zfs_getfs mnt
-	echo "The zfs_getfs function is not used in DragonFly"
+	# The ZFS is never used in DragonFly
 }
 
 mnt_tmpfs() {
