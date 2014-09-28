@@ -186,9 +186,6 @@ create_jail() {
 	pwd_mkdb -d ${JAILMNT}/etc/ -p ${JAILMNT}/etc/master.passwd
 
 	cat > ${JAILMNT}/etc/make.conf << EOF
-USE_PACKAGE_DEPENDS=yes
-BATCH=yes
-WRKDIRPREFIX=/wrkdirs
 NO_BACKUP=yes
 EOF
 	# At least one daemon has to run otherwise jail will exits immediately
