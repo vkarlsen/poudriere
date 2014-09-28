@@ -1432,6 +1432,45 @@ include_poudriere_confs() {
 	return 0
 }
 
+cleanup() {
+	local wait_pids
+
+	[ -n "${CLEANED_UP}" ] && return 0
+	msg "Cleaning up"
+
+	# Only bother with this if using jails as this may be being ran
+	# from queue.sh or daemon.sh, etc.
+	if [ -n "${MASTERMNT}" -a -n "${MASTERNAME}" ] && was_a_jail_run; then
+		# If this is a builder, don't cleanup, the master will handle that.
+		if [ -n "${MY_JOBID}" ]; then
+			[ -n "${PKGNAME}" ] && clean_pool ${PKGNAME} "" "failed" || :
+			return 0
+		fi
+
+		if [ -d ${MASTERMNT}/.p/var/run ]; then
+			for pid in ${MASTERMNT}/.p/var/run/*.pid; do
+				# Ensure there is a pidfile to read or break
+				[ "${pid}" = "${MASTERMNT}/.p/var/run/*.pid" ] && break
+				pkill -15 -F ${pid} >/dev/null 2>&1 || :
+				wait_pids="${wait_pids} ${pid}"
+			done
+			_wait ${wait_pids} || :
+		fi
+
+		jail_stop
+
+		rm -rf \
+		    ${PACKAGES}/.npkg \
+		    ${POUDRIERE_DATA}/packages/${MASTERNAME}/.latest/.npkg \
+		    2>/dev/null || :
+
+	fi
+
+	rmdir /tmp/.poudriere-lock-$$-* 2>/dev/null || :
+
+	export CLEANED_UP=1
+}
+
 # return 0 if the package dir exists and has packages, 0 otherwise
 package_dir_exists_and_has_packages() {
 	[ ! -d ${PACKAGES}/All ] && return 1
