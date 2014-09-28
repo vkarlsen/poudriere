@@ -99,7 +99,8 @@ jail_start() {
 			${MASTERMNT}/packages \
 			${MASTERMNT}/portdistfiles \
 			${MASTERMNT}/poudriere \
-			${MASTERMNT}/usr/local
+			${MASTERMNT}/usr/local \
+			${MASTERMNT}/.npkg
 
 	if [ -d "${CCACHE_DIR:-/nonexistent}" ]; then
 		mkdir ${MASTERMNT}/root/.ccache
@@ -338,7 +339,7 @@ killtree() {
 check_mount() {
 	[ $# -ne 1 ] && eargs jailname
 	local mnt
-	_jget mnt ${name} mnt
+	_jget mnt ${1} mnt
 	local AWKCMD='{ if ($1 == mnt) print $3 }'
 	mount | awk -v mnt="${mnt}" "${AWKCMD}"
 	return 0

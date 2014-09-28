@@ -154,13 +154,11 @@ msg_error() {
 
 msg_debug() {
 	[ ${VERBOSE} -gt 1 ] || return 0
-	COLOR_ARROW="${COLOR_DEBUG}" \
-	    msg "${COLOR_DEBUG}Debug: $@" >&2
+	msg "${COLOR_DEBUG}Debug: $@" >&2
 }
 
 msg_warn() {
-	COLOR_ARROW="${COLOR_WARN}" \
-	    msg "${COLOR_WARN}Warning: $@" >&2
+	msg "${COLOR_WARN}Warning: $@" >&2
 }
 
 job_msg() {
@@ -1635,7 +1633,7 @@ gather_distfiles() {
 	sub=$(injail make -C ${portdir} -VDIST_SUBDIR)
 	dists=$(injail make -C ${portdir} -V_DISTFILES -V_PATCHFILES)
 	specials=$(injail make -C ${portdir} -V_DEPEND_SPECIALS)
-	job_msg_verbose "Status   ${COLOR_PORT}${portdir##/usr/ports/}${COLOR_RESET}: distfiles ${from} -> ${to}"
+	#job_msg_verbose "Status   ${COLOR_PORT}${portdir##/usr/ports/}${COLOR_RESET}: distfiles ${from} -> ${to}"
 	for d in ${dists}; do
 		[ -f ${from}/${sub}/${d} ] || continue
 		tosubd=${to}/${sub}/${d}
@@ -2274,7 +2272,7 @@ calculate_elapsed_from_log() {
 	local log="$2"
 
 	[ -f "${log}/.poudriere.status" ] || return 1
-	start_end_time=$(stat -f '%B %m' ${log}/.poudriere.status)
+	start_end_time=$(stat -f '%c %m' ${log}/.poudriere.status)
 	start_time=${start_end_time% *}
 	if status_is_stopped "${status}"; then
 		end_time=${start_end_time#* }
@@ -2375,8 +2373,7 @@ crashed_build() {
 	# Symlink the buildlog into errors/
 	ln -s "../${pkgname}.log" "${log}/logs/errors/${pkgname}.log"
 	badd ports.failed "${origin} ${pkgname} ${failed_phase} ${failed_phase}"
-	COLOR_ARROW="${COLOR_FAIL}" msg \
-	    "${COLOR_FAIL}Finished build of ${COLOR_PORT}${origin}${COLOR_FAIL}: Failed: ${COLOR_PHASE}${failed_phase}"
+	msg "${COLOR_FAIL}Finished build of ${COLOR_PORT}${origin}${COLOR_FAIL}: Failed: ${COLOR_PHASE}${failed_phase}"
 	run_hook pkgbuild failed "${origin}" "${pkgname}" \
 	    "${failed_phase}" \
 	    "${log}/logs/errors/${pkgname}.log"
@@ -2400,8 +2397,7 @@ clean_pool() {
 	sh ${SCRIPTPREFIX}/clean.sh "${MASTERMNT}" "${pkgname}" "${clean_rdepends}" | sort -u | while read skipped_pkgname; do
 		cache_get_origin skipped_origin "${skipped_pkgname}"
 		badd ports.skipped "${skipped_origin} ${skipped_pkgname} ${pkgname}"
-		COLOR_ARROW="${COLOR_SKIP}" \
-		    job_msg "${COLOR_SKIP}Skipping build of ${COLOR_PORT}${skipped_origin}${COLOR_SKIP}: Dependent port ${COLOR_PORT}${port}${COLOR_SKIP} ${clean_rdepends}"
+		job_msg "${COLOR_SKIP}Skipping build of ${COLOR_PORT}${skipped_origin}${COLOR_SKIP}: Dependent port ${COLOR_PORT}${port}${COLOR_SKIP} ${clean_rdepends}"
 		run_hook pkgbuild RESULT=skipped \
 			SKIPPED_ORIGIN="${skipped_origin}" \
 			SKIPPED_PKGNAME="${skipped_pkgname}" "${port}" \
@@ -2479,7 +2475,7 @@ build_pkg() {
 	if [ -n "${ignore}" ]; then
 		msg "Ignoring ${port}: ${ignore}"
 		badd ports.ignored "${port} ${PKGNAME} ${ignore}"
-		COLOR_ARROW="${COLOR_IGNORE}" job_msg "${COLOR_IGNORE}Finished build of ${COLOR_PORT}${port}${COLOR_IGNORE}: Ignored: ${ignore}"
+		job_msg "${COLOR_IGNORE}Finished build of ${COLOR_PORT}${port}${COLOR_IGNORE}: Ignored: ${ignore}"
 		clean_rdepends="ignored"
 		run_hook pkgbuild RESULT=ignored \
 			ORIGIN="${port}" \
@@ -2506,7 +2502,7 @@ build_pkg() {
 
 		if [ ${build_failed} -eq 0 ]; then
 			badd ports.built "${port} ${PKGNAME}"
-			COLOR_ARROW="${COLOR_SUCCESS}" job_msg "${COLOR_SUCCESS}Finished ${COLOR_PORT}${port}${COLOR_SUCCESS}: Success"
+			job_msg "Finished ${COLOR_PORT}${port}${COLOR_SUCCESS}: Success"
 			run_hook pkgbuild RESULT=success \
 				ORIGIN="${port}" \
 				PKGNAME="${PKGNAME}"
@@ -2521,7 +2517,7 @@ build_pkg() {
 				2> /dev/null)
 			badd ports.failed "${port} ${PKGNAME} ${failed_phase} ${errortype}"
 			echo "${port} ${failed_phase}" >> $(log_path)/last_run.failed
-			COLOR_ARROW="${COLOR_FAIL}" job_msg "${COLOR_FAIL}Finished ${COLOR_PORT}${port}${COLOR_FAIL}: Failed: ${COLOR_PHASE}${failed_phase}"
+			job_msg "Finished ${COLOR_PORT}${port}${COLOR_FAIL}: Failed: ${COLOR_PHASE}${failed_phase}"
 			run_hook pkgbuild RESULT=failed \
 				ORIGIN="${port}" \
 				PKGNAME="${PKGNAME}" \
@@ -2731,7 +2727,7 @@ ensure_pkg_installed() {
 	[ ${PKGNG} -eq 1 ] || return 0
 	[ -z "${force}" ] && [ -x "${mnt}${PKG_BIN}" ] && return 0
 	[ -e ${MASTERMNT}/packages/Latest/pkg.txz ] || return 1 #pkg missing
-	injail tar xf /packages/Latest/pkg.txz -C / \
+	injail tar -xf /packages/Latest/pkg.txz -C / \
 		-s ",/.*/,.p/,g" "*/pkg-static"
 	return 0
 }
