@@ -80,7 +80,7 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-pkglibexec_PROGRAMS = cpdup$(EXEEXT) dirempty$(EXEEXT) \
+pkglibexec_PROGRAMS = dirempty$(EXEEXT) \
 	dirwatch$(EXEEXT) nc$(EXEEXT) poudriered$(EXEEXT) \
 	rename$(EXEEXT) timeout$(EXEEXT) timestamp$(EXEEXT) \
 	tsort$(EXEEXT) jexecd$(EXEEXT) rexec$(EXEEXT)
