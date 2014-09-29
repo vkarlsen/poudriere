@@ -3558,8 +3558,8 @@ prepare_ports() {
 			delete_stale_symlinks_and_empty_dirs
 		fi
 	else
-		[ ${SKIPSANITY} -eq 1 ] && msg_n "(-s) "
-		msg "Skipping incremental rebuild and repository sanity checks"
+		[ ${SKIPSANITY} -eq 1 ] && \
+		msg "(-s) Skipping incremental rebuild and repository sanity checks"
 	fi
 
 	export LOCALBASE=${LOCALBASE:-/usr/local}
