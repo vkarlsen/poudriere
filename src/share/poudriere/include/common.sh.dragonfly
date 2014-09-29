@@ -254,13 +254,13 @@ create_slave() {
 	local arch=$(jget ${jname} arch)
 
 	if [ -f ${mnt}/virgin ]; then
-	    job_msg "Jail     ${COLOR_PHASE}Mounting"
+	    job_msg "Jail     ${COLOR_WHITE}Mounting"
 	    # Make one-time readonly duplicate of base image, virgin hidden
 	    ${NULLMOUNT} -o rdonly ${MASTERMNT} ${mnt}
 	    do_jail_mounts ${mnt} ${arch}
 	    do_portbuild_mounts ${mnt} ${jname} ${ptname} ${setname}
 	else
-	    job_msg "Jail     ${COLOR_PHASE}Renovating"
+	    job_msg "Jail     ${COLOR_WHITE}Renovating"
 	fi
 	# Refresh /usr/local and /etc and /var
 	mount_tmpfs -s 200M  tmpfs ${mnt}/tmp

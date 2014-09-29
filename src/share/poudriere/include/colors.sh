@@ -83,18 +83,18 @@ colorize_job_id() {
 
 	case ${id} in
 	1)  color="${COLOR_WHITE}" ;;
-	2)  color="${COLOR_YELLOW}" ;;
-	3)  color="${COLOR_LIGHT_RED}" ;;
-	4)  color="${COLOR_LIGHT_BLUE}" ;;
-	5)  color="${COLOR_LIGHT_GREEN}" ;;
-	6)  color="${COLOR_LIGHT_MAGENTA}" ;;
+	2)  color="${COLOR_LIGHT_GREEN}" ;;
+	3)  color="${COLOR_LIGHT_MAGENTA}" ;;
+	4)  color="${COLOR_YELLOW}" ;;
+	5)  color="${COLOR_LIGHT_BLUE}" ;;
+	6)  color="${COLOR_LIGHT_RED}" ;;
 	7)  color="${COLOR_LIGHT_CYAN}" ;;
 	8)  color="${COLOR_DARK_GRAY}" ;;
-	9)  color="${COLOR_BROWN}" ;;
-	10) color="${COLOR_RED}" ;;
-	11) color="${COLOR_BLUE}" ;;
-	12) color="${COLOR_GREEN}" ;;
-	13) color="${COLOR_MAGENTA}" ;;
+	9)  color="${COLOR_GREEN}" ;;
+	10) color="${COLOR_MAGENTA}" ;;
+	11) color="${COLOR_BROWN}" ;;
+	12) color="${COLOR_BLUE}" ;;
+	13) color="${COLOR_RED}" ;;
 	14) color="${COLOR_CYAN}" ;;
 	*)  color="${COLOR_RESET}" ;;
 	esac
