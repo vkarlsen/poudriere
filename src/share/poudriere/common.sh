@@ -806,7 +806,7 @@ siginfo_handler() {
 
 			# Must put colors in format
 			format_origin_phase="\t[${job_id_color}%s${COLOR_RESET}]: ${COLOR_PORT}%-32s ${COLOR_PHASE}%-15s${COLOR_RESET} (%s)\n"
-			format_phase="\t[${job_id_color}%s${COLOR_RESET}]: ${COLOR_PHASE}%15s${COLOR_RESET}\n"
+			format_phase="\t[${job_id_color}%s${COLOR_RESET}]: %-32s ${COLOR_PHASE}%-15s${COLOR_RESET}\n"
 
 			if [ -n "${pkgname}" ]; then
 				elapsed=$((${now} - ${started}))
@@ -814,7 +814,7 @@ siginfo_handler() {
 				printf "${format_origin_phase}" "${j}" \
 				    "${origin}" "${phase}" ${buildtime}
 			else
-				printf "${format_phase}" "${j}" "${phase}"
+				printf "${format_phase}" "${j}" "" "${phase}"
 			fi
 		done
 	fi
