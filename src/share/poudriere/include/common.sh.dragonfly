@@ -140,8 +140,6 @@ jail_start() {
 	JAILMNT=${mnt} injail /usr/sbin/mtree -q -U -f \
 	   /usr/ports/Templates/BSD.local.dist -d -e -p /usr/local >/dev/null
 
-	was_a_bulk_run && show_log_info
-
 	# The master jail is malleable so /etc/ can be modified later
 	# The slave jails are read only.  All have same source
 
