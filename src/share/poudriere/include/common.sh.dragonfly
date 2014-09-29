@@ -254,13 +254,13 @@ create_slave() {
 	local arch=$(jget ${jname} arch)
 
 	if [ -f ${mnt}/virgin ]; then
-	    job_msg "Jail     Mounting"
+	    job_msg "Jail     ${COLOR_PHASE}Mounting"
 	    # Make one-time readonly duplicate of base image, virgin hidden
 	    ${NULLMOUNT} -o rdonly ${MASTERMNT} ${mnt}
 	    do_jail_mounts ${mnt} ${arch}
 	    do_portbuild_mounts ${mnt} ${jname} ${ptname} ${setname}
 	else
-	    job_msg "Jail     Renovating"
+	    job_msg "Jail     ${COLOR_PHASE}Renovating"
 	fi
 	# Refresh /usr/local and /etc and /var
 	mount_tmpfs -s 200M  tmpfs ${mnt}/tmp
@@ -278,8 +278,6 @@ create_slave() {
 
 	JAILMNT=${mnt} injail /usr/sbin/mtree -q -U -f \
 	   /usr/ports/Templates/BSD.local.dist -d -e -p /usr/local >/dev/null
-
-	job_msg "Jail     Ready"
 }
 
 destroy_slave() {
