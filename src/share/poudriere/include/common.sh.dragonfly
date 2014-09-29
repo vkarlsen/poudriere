@@ -138,10 +138,6 @@ jail_start() {
 	cp -a ${MASTERMNT}/etc ${MASTERMNT}/etc2
 	cp -a ${MASTERMNT}/var ${MASTERMNT}/var2
 
-	# set up /usr/local for testport
-	JAILMNT=${mnt} injail /usr/sbin/mtree -q -U -f \
-	   /usr/ports/Templates/BSD.local.dist -d -e -p /usr/local >/dev/null
-
 	# The master jail is malleable so /etc/ can be modified later
 	# The slave jails are read only.  All have same source
 
@@ -277,9 +273,6 @@ create_slave() {
 #	fi
 	cp -a ${mnt}/etc2/* ${mnt}/etc/
 	cp -a ${mnt}/var2/* ${mnt}/var/
-
-	JAILMNT=${mnt} injail /usr/sbin/mtree -q -U -f \
-	   /usr/ports/Templates/BSD.local.dist -d -e -p /usr/local >/dev/null
 }
 
 destroy_slave() {
