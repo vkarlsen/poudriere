@@ -34,6 +34,12 @@ BLACKLIST=""
 was_a_bulk_run() {
 	[ "${0##*/}" = "bulk.sh" -o "${0##*/}" = "testport.sh" ]
 }
+
+# Return true if run from testport
+testport_run() {
+	[ "${0##*/}" = "testport.sh" ]
+}
+
 # Return true if in a bulk or other jail run that needs to shutdown the jail
 was_a_jail_run() {
 	was_a_bulk_run ||  [ "${0##*/}" = "pkgclean.sh" ]
@@ -2005,7 +2011,7 @@ _real_build_port() {
 				die=1
 				cat ${mod1}
 			fi
-			[ ${die} -eq 1 -a "${0##*/}" = "testport.sh" -a \
+			testport_run && [ ${die} -eq 1 -a \
 			    "${PREFIX}" != "${LOCALBASE}" ] && msg \
 			    "This test was done with PREFIX!=LOCALBASE which \
 may show failures if the port does not respect PREFIX. \
@@ -2321,7 +2327,7 @@ parallel_build() {
 	local nremaining=$(calculate_tobuild)
 
 	# Subtract the 1 for the main port to test
-	[ "${0##*/}" = "testport.sh" ] && nremaining=$((${nremaining} - 1))
+	testport_run && nremaining=$((${nremaining} - 1))
 
 	# If pool is empty, just return
 	[ ${nremaining} -eq 0 ] && return 0
@@ -3427,8 +3433,11 @@ prepare_ports() {
 		mkdir -p ${log}/../../latest-per-pkg ${log}/../latest-per-pkg \
 		    ${log}/logs ${log}/logs/errors ${cache_dir}
 		ln -sfh ${BUILDNAME} ${log%/*}/latest
-		cp ${HTMLPREFIX}/index.html ${log}
-		cp -R ${HTMLPREFIX}/assets/ ${log}/assets/
+
+		if ! testport_run; then
+			cp ${HTMLPREFIX}/index.html ${log}
+			cp -R ${HTMLPREFIX}/assets/ ${log}/assets/
+		fi
 
 		# Record the SVN URL@REV in the build
 		[ -d ${MASTERMNT}/usr/ports/.svn ] && bset svn_url $(
@@ -3571,7 +3580,7 @@ prepare_ports() {
 		nbq=0
 		nbq=$(find ${MASTERMNT}/.p/deps -type d -depth 1 | wc -l)
 		# Add 1 for the main port to test
-		[ "${0##*/}" = "testport.sh" ] && nbq=$((${nbq} + 1))
+		testport_run && nbq=$((${nbq} + 1))
 		bset stats_queued ${nbq##* }
 	fi
 
