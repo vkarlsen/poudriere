@@ -3407,7 +3407,7 @@ prepare_ports() {
 	local pkg
 	local log
 	local n pn nbq resuming_build
-	local cache_dir
+	local cache_dir sflag
 
 	_log_path log
 	rm -rf "${MASTERMNT}/.p/var/cache/origin-pkgname" \
@@ -3468,7 +3468,7 @@ prepare_ports() {
 		    msg_n "Cleaning all packages due to newer version of the jail..."
 
 		[ ${CLEAN} -eq 1 ] &&
-		    msg_n "(-c): Cleaning all packages..."
+		    msg_n "(-c) Cleaning all packages..."
 
 		if [ ${JAIL_NEEDS_CLEAN} -eq 1 ] || [ ${CLEAN} -eq 1 ]; then
 			rm -rf ${PACKAGES}/* ${cache_dir}
@@ -3558,8 +3558,8 @@ prepare_ports() {
 			delete_stale_symlinks_and_empty_dirs
 		fi
 	else
-		[ ${SKIPSANITY} -eq 1 ] && \
-		msg "(-s) Skipping incremental rebuild and repository sanity checks"
+		[ ${SKIPSANITY} -eq 1 ] && sflag="(-s) "
+		msg "${sflag}Skipping incremental rebuild and repository sanity checks"
 	fi
 
 	export LOCALBASE=${LOCALBASE:-/usr/local}
