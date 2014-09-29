@@ -61,7 +61,7 @@ build_json() {
 	local log
 
 	_log_path log
-	local awklist=$(find $log -name ".poudriere.ports.*" \
+	local awklist=$(find -s $log -name ".poudriere.ports.*" \
 		-o -name ".poudriere.stat*" \
 		-o -name ".poudriere.setname" \
 		-o -name ".poudriere.ptname" \

@@ -286,7 +286,7 @@ function process_data(data) {
 	}
 
 	first_run = false;
-	if (master_status == "stop") {
+	if (master_status == "stopping_jobs") {
 		// No further changes are coming, stop polling
 		clearInterval(update_fields);
 	} else {

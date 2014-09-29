@@ -595,8 +595,6 @@ bset() {
 	property="$1"
 	file=.poudriere.${property}${id:+.${id}}
 	shift
-	[ "${property}" = "status" ] && \
-	    echo "$@" >> ${log}/${file}.journal% || :
 	echo "$@" > ${log}/${file} || :
 }
 
@@ -3425,6 +3423,8 @@ prepare_ports() {
 		mkdir -p ${log}/../../latest-per-pkg ${log}/../latest-per-pkg \
 		    ${log}/logs ${log}/logs/errors ${cache_dir}
 		ln -sfh ${BUILDNAME} ${log%/*}/latest
+		cp ${HTMLPREFIX}/index.html ${log}
+		cp -R ${HTMLPREFIX}/assets/ ${log}/assets/
 
 		# Record the SVN URL@REV in the build
 		[ -d ${MASTERMNT}/usr/ports/.svn ] && bset svn_url $(
