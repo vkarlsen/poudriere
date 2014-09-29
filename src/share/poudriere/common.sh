@@ -752,8 +752,14 @@ show_build_summary() {
 	elapsed=${_elapsed_time}
 	calculate_duration buildtime ${elapsed}
 
-	printf "[${MASTERNAME}] [${buildname}] [${status}] Queued: %-${queue_width}d ${COLOR_SUCCESS}Built: %-${queue_width}d ${COLOR_FAIL}Failed: %-${queue_width}d ${COLOR_SKIP}Skipped: %-${queue_width}d ${COLOR_IGNORE}Ignored: %-${queue_width}d${COLOR_RESET} Tobuild: %-${queue_width}d  Time: %s\n" \
-	    ${nbq} ${nbb} ${nbf} ${nbs} ${nbi} ${nbtobuild} "${buildtime}"
+	printf "[${MASTERNAME}] [${buildname}] [${status}]  Time: %s\n\
+Initially: %-${queue_width}d  \
+Built: ${COLOR_SUCCESS}%-${queue_width}d${COLOR_RESET}  \
+Failed: ${COLOR_FAIL}%-${queue_width}d${COLOR_RESET}  \
+Ignored: ${COLOR_IGNORE}%-${queue_width}d${COLOR_RESET}  \
+Skipped: ${COLOR_SKIP}%-${queue_width}d${COLOR_RESET}\n\
+Remaining: %-${queue_width}d\n"  \
+	"${buildtime}" ${nbq} ${nbb} ${nbf} ${nbs} ${nbi} ${nbtobuild}
 }
 
 siginfo_handler() {
@@ -1306,13 +1312,13 @@ show_build_results() {
 	_bget nbignored stats_ignored
 	_bget nbskipped stats_skipped
 
-	[ $nbbuilt -gt 0 ] && COLOR_ARROW="${COLOR_SUCCESS}" \
+	[ $nbbuilt -gt 0 ] && \
 	    msg "${COLOR_SUCCESS}Built ports: ${COLOR_PORT}${built}"
-	[ $nbfailed -gt 0 ] && COLOR_ARROW="${COLOR_FAIL}" \
+	[ $nbfailed -gt 0 ] && \
 	    msg "${COLOR_FAIL}Failed ports: ${COLOR_PORT}${failed}"
-	[ $nbskipped -gt 0 ] && COLOR_ARROW="${COLOR_SKIP}" \
+	[ $nbskipped -gt 0 ] && \
 	    msg "${COLOR_SKIP}Skipped ports: ${COLOR_PORT}${skipped}"
-	[ $nbignored -gt 0 ] && COLOR_ARROW="${COLOR_IGNORE}" \
+	[ $nbignored -gt 0 ] && \
 	    msg "${COLOR_IGNORE}Ignored ports: ${COLOR_PORT}${ignored}"
 
 	show_build_summary
@@ -2371,7 +2377,7 @@ crashed_build() {
 	# Symlink the buildlog into errors/
 	ln -s "../${pkgname}.log" "${log}/logs/errors/${pkgname}.log"
 	badd ports.failed "${origin} ${pkgname} ${failed_phase} ${failed_phase}"
-	msg "${COLOR_FAIL}Finished build of ${COLOR_PORT}${origin}${COLOR_FAIL}: Failed: ${COLOR_PHASE}${failed_phase}"
+	msg "${COLOR_FAIL}Finished ${COLOR_PORT}:${origin}${COLOR_FAIL} Failed: ${COLOR_PHASE}${failed_phase}"
 	run_hook pkgbuild failed "${origin}" "${pkgname}" \
 	    "${failed_phase}" \
 	    "${log}/logs/errors/${pkgname}.log"
@@ -2473,7 +2479,7 @@ build_pkg() {
 	if [ -n "${ignore}" ]; then
 		msg "Ignoring ${port}: ${ignore}"
 		badd ports.ignored "${port} ${PKGNAME} ${ignore}"
-		job_msg "${COLOR_IGNORE}Finished build of ${COLOR_PORT}${port}${COLOR_IGNORE}: Ignored: ${ignore}"
+		job_msg "${COLOR_IGNORE}Finished ${COLOR_PORT}${port}:${COLOR_IGNORE} Ignored: ${ignore}"
 		clean_rdepends="ignored"
 		run_hook pkgbuild RESULT=ignored \
 			ORIGIN="${port}" \
@@ -2500,7 +2506,7 @@ build_pkg() {
 
 		if [ ${build_failed} -eq 0 ]; then
 			badd ports.built "${port} ${PKGNAME}"
-			job_msg "Finished ${COLOR_PORT}${port}${COLOR_SUCCESS}: Success"
+			job_msg "Finished ${COLOR_PORT}${port}:${COLOR_SUCCESS} Success"
 			run_hook pkgbuild RESULT=success \
 				ORIGIN="${port}" \
 				PKGNAME="${PKGNAME}"
@@ -2515,7 +2521,7 @@ build_pkg() {
 				2> /dev/null)
 			badd ports.failed "${port} ${PKGNAME} ${failed_phase} ${errortype}"
 			echo "${port} ${failed_phase}" >> $(log_path)/last_run.failed
-			job_msg "Finished ${COLOR_PORT}${port}${COLOR_FAIL}: Failed: ${COLOR_PHASE}${failed_phase}"
+			job_msg "Finished ${COLOR_PORT}${port}:${COLOR_FAIL} Failed: ${COLOR_PHASE}${failed_phase}"
 			run_hook pkgbuild RESULT=failed \
 				ORIGIN="${port}" \
 				PKGNAME="${PKGNAME}" \
