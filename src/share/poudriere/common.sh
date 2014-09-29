@@ -127,12 +127,12 @@ msg_n() {
 	if should_show_elapsed; then
 		now=$(date +%s)
 		calculate_duration elapsed "$((${now} - ${TIME_START}))"
-		elapsed="[${elapsed}] "
+		elapsed="${elapsed} "
 	fi
 	if [ -n "${COLOR_ARROW}" ] || [ -z "${1##*\033[*}" ]; then
-		printf "${elapsed}${DRY_MODE}${COLOR_ARROW}====>>${COLOR_RESET} ${1}${COLOR_RESET_REAL}"
+		printf "${elapsed}${DRY_MODE}${COLOR_ARROW}=> ${COLOR_RESET}${1}${COLOR_RESET_REAL}"
 	else
-		printf "${elapsed}${DRY_MODE}====>> ${1}"
+		printf "${elapsed}${DRY_MODE}=> ${1}"
 	fi
 }
 
