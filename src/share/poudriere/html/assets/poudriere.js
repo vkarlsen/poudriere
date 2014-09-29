@@ -305,7 +305,7 @@ $(document).ready(function() {
 		"bFilter": false,
 		"bInfo": false,
 		"bPaginate": false,
-		"aoColumnDefs": [{"bSortable": false, "aTargets": [0,1,2]}],
+		"ordering": false,
 	});
 
 	columnDefs = {
