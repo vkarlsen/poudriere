@@ -2452,7 +2452,7 @@ build_pkg() {
 	NO_ELAPSED_IN_MSG=1
 	colorize_job_id COLOR_JOBID "${MY_JOBID}"
 
-	job_msg "Starting build of ${COLOR_PORT}${port}${COLOR_RESET}"
+	job_msg "Starting ${COLOR_PORT}${port}${COLOR_RESET} build"
 	bset_job_status "starting" "${port}"
 	create_slave ${MY_JOBID}
 
