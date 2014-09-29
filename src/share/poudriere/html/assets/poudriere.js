@@ -272,8 +272,10 @@ function process_data(data) {
 
 					table_rows.push(format_status_row(status, row, n+1));
 				}
-				$('#' + status + '_body').data('index', n);
-				$('#' + status + '_table').dataTable().fnAddData(table_rows);
+				if (table_rows.length > 0) {
+					$('#' + status + '_body').data('index', n);
+					$('#' + status + '_table').dataTable().fnAddData(table_rows);
+				}
 			}
 		});
 	}
