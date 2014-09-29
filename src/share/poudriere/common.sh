@@ -779,8 +779,6 @@ siginfo_handler() {
 	[ "${status}" = "index:" -o "${status#stopped:}" = "crashed:" ] && \
 	    return 0
 
-	show_build_summary
-
 	now=$(date +%s)
 
 	# Skip if stopping or starting jobs or stopped.
@@ -819,7 +817,7 @@ siginfo_handler() {
 		done
 	fi
 
-	show_log_info
+	show_build_summary
 }
 
 jail_exists() {
