@@ -96,13 +96,11 @@ jail_start() {
 			${MASTERMNT}/compat/linux/proc \
 			${MASTERMNT}/compat/svr4 \
 			${MASTERMNT}/distfiles \
-			${MASTERMNT}/new_packages/All \
-			${MASTERMNT}/new_packages/Latest \
 			${MASTERMNT}/options \
 			${MASTERMNT}/packages \
 			${MASTERMNT}/portdistfiles \
-			${MASTERMNT}/poudriere \
 			${MASTERMNT}/usr/local \
+			${MASTERMNT}/.p \
 			${MASTERMNT}/.npkg
 
 	if [ -d "${CCACHE_DIR:-/nonexistent}" ]; then
@@ -145,19 +143,18 @@ jail_start() {
 	# The master jail is malleable so /etc/ can be modified later
 	# The slave jails are read only.  All have same source
 
-		PKGNG=1
-		PKG_EXT="txz"
-		PKG_BIN="/.p/pkg-static"
-		PKG_ADD="${PKG_BIN} add"
-		PKG_DELETE="${PKG_BIN} delete -y -f"
-		PKG_VERSION="${PKG_BIN} version"
+	PKGNG=1
+	PKG_EXT="txz"
+	PKG_BIN="/.p/pkg-static"
+	PKG_ADD="${PKG_BIN} add"
+	PKG_DELETE="${PKG_BIN} delete -y -f"
+	PKG_VERSION="${PKG_BIN} version"
 
-		[ -n "${PKG_REPO_SIGNING_KEY}" ] &&
-			! [ -f "${PKG_REPO_SIGNING_KEY}" ] &&
-			err 1 "PKG_REPO_SIGNING_KEY defined but the file is missing."
+	[ -n "${PKG_REPO_SIGNING_KEY}" ] &&
+		! [ -f "${PKG_REPO_SIGNING_KEY}" ] &&
+		err 1 "PKG_REPO_SIGNING_KEY defined but the file is missing."
 
 	return 0
-
 }
 
 jail_stop() {
@@ -168,6 +165,7 @@ jail_stop() {
 
 	cd /
 	msg "Umounting file systems"
+	sleep 2
 	mnt=${MASTERMNT%/ref}
 	mntlist=$(mount | awk -v mnt="${mnt}" "${AWKCMD1}" |  sort -r)
 	dismount_list ${mntlist}
@@ -178,7 +176,7 @@ jail_stop() {
 
 	for verify in A B C; do
 		mntlist=$(mount | awk -v mnt="${mnt}" "${AWKCMD1}" | sort -r)
-		if [ -z "${rem}" ]; then
+		if [ -z "${mntlist}" ]; then
 		    break
 		else
 		    msg "Umounting not entirely successful.  Trying again in 30 seconds."
@@ -187,8 +185,15 @@ jail_stop() {
 		fi
 	done
 
-	mntlist=$(mount | awk -v mnt="${mnt}" "${AWKCMD2}" |  sort -r)
-	dismount_list ${mntlist}
+	for verify in A B C; do
+		[ ${verify} != "A" ] && sleep 3
+		mntlist=$(mount | awk -v mnt="${mnt}" "${AWKCMD2}" | sort -r)
+		if [ -z "${mntlist}" ]; then
+			break
+		else
+			dismount_list ${mntlist}
+		fi
+	done
 
 	export STATUS=0
 

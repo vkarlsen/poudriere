@@ -686,15 +686,12 @@ exit_handler() {
 
 	if was_a_bulk_run; then
 		log_stop
+		stop_html_json
 	fi
 
 	parallel_shutdown
 
 	[ ${STATUS} -eq 1 ] && cleanup
-
-	if was_a_bulk_run; then
-		stop_html_json
-	fi
 
 	[ -n ${CLEANUP_HOOK} ] && ${CLEANUP_HOOK}
 }
