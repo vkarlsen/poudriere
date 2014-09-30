@@ -2514,7 +2514,7 @@ build_pkg() {
 				${log}/logs/errors/${PKGNAME}.log \
 				2> /dev/null)
 			badd ports.failed "${port} ${PKGNAME} ${failed_phase} ${errortype}"
-			echo "${port} ${failed_phase}" >> $(log_path)/last_run.failed
+			echo "${port} ${failed_phase}" >> ${log}/last_run.failed
 			job_msg "Finished ${COLOR_PORT}${port}${COLOR_RESET}: ${COLOR_FAIL}Failed: ${COLOR_PHASE}${failed_phase}"
 			run_hook pkgbuild RESULT=failed \
 				ORIGIN="${port}" \
