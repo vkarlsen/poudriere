@@ -288,9 +288,9 @@ destroy_slave() {
 		len = length(mnt); \
 		rest = substr($3, len+1); \
 		if (       rest == "/etc" \
-			|| rest == "/new_packages" \
+			|| rest == "/.npkg" \
 			|| rest == "/portdistfiles" \
-			|| rest == "/poudriere" \
+			|| rest == "/.p" \
 			|| rest == "/tmp" \
 			|| rest == "/usr/local" \
 			|| rest == "/var" \
@@ -308,23 +308,6 @@ destroy_slave() {
 	if [ -n "${stagglers}" ]; then
 	   sleep 3
 	   umount ${stagglers}
-	fi
-}
-
-killtree() {
-	local _pid=${1}
-	local _sig=${2}
-	local _child
-	local _children
-
-	# stop parent from attempting to folk
-	if kill -17 ${_pid} 2>/dev/null; then
-	   _children=$(pgrep -P ${_pid})
-	   for _child in ${children}; do
-	      killtree ${_child} ${_sig}
-	   done
-	   kill -${_sig} ${_pid}
-	   pwait ${_pid} 2>/dev/null || :
 	fi
 }
 
