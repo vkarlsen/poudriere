@@ -2381,7 +2381,7 @@ crashed_build() {
 	# Symlink the buildlog into errors/
 	ln -s "../${pkgname}.log" "${log}/logs/errors/${pkgname}.log"
 	badd ports.failed "${origin} ${pkgname} ${failed_phase} ${failed_phase}"
-	msg "${COLOR_FAIL}Finished ${COLOR_PORT}:${origin}${COLOR_FAIL} Failed: ${COLOR_PHASE}${failed_phase}"
+	msg "Finished ${COLOR_PORT}${origin}${COLOR_RESET}: ${COLOR_FAIL}Failed: ${COLOR_PHASE}${failed_phase}"
 	run_hook pkgbuild failed "${origin}" "${pkgname}" \
 	    "${failed_phase}" \
 	    "${log}/logs/errors/${pkgname}.log"
@@ -2483,7 +2483,7 @@ build_pkg() {
 	if [ -n "${ignore}" ]; then
 		msg "Ignoring ${port}: ${ignore}"
 		badd ports.ignored "${port} ${PKGNAME} ${ignore}"
-		job_msg "${COLOR_IGNORE}Finished ${COLOR_PORT}${port}:${COLOR_IGNORE} Ignored: ${ignore}"
+		job_msg "Finished ${COLOR_PORT}${port}${COLOR_RESET}: ${COLOR_IGNORE}Ignored: ${ignore}"
 		clean_rdepends="ignored"
 		run_hook pkgbuild RESULT=ignored \
 			ORIGIN="${port}" \
@@ -2510,7 +2510,7 @@ build_pkg() {
 
 		if [ ${build_failed} -eq 0 ]; then
 			badd ports.built "${port} ${PKGNAME}"
-			job_msg "Finished ${COLOR_PORT}${port}:${COLOR_SUCCESS} Success"
+			job_msg "Finished ${COLOR_PORT}${port}${COLOR_RESET}: ${COLOR_SUCCESS}Success"
 			run_hook pkgbuild RESULT=success \
 				ORIGIN="${port}" \
 				PKGNAME="${PKGNAME}"
@@ -2525,7 +2525,7 @@ build_pkg() {
 				2> /dev/null)
 			badd ports.failed "${port} ${PKGNAME} ${failed_phase} ${errortype}"
 			echo "${port} ${failed_phase}" >> $(log_path)/last_run.failed
-			job_msg "Finished ${COLOR_PORT}${port}:${COLOR_FAIL} Failed: ${COLOR_PHASE}${failed_phase}"
+			job_msg "Finished ${COLOR_PORT}${port}${COLOR_RESET}: ${COLOR_FAIL}Failed: ${COLOR_PHASE}${failed_phase}"
 			run_hook pkgbuild RESULT=failed \
 				ORIGIN="${port}" \
 				PKGNAME="${PKGNAME}" \
