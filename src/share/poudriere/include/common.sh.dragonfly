@@ -162,31 +162,33 @@ jail_start() {
 
 jail_stop() {
 	[ $# -ne 0 ] && eargs jail_stop
-	local mnt rem
+	local mnt mntlist
 	local AWKCMD1='{ if ($3 ~ mnt && $3 !~ /\/ref/) { print $3 }}'
 	local AWKCMD2='{ if ($3 ~ mnt) { print $3 }}'
 
 	cd /
 	msg "Umounting file systems"
 	mnt=${MASTERMNT%/ref}
-	mount | awk -v mnt="${mnt}" "${AWKCMD1}" |  sort -r | xargs umount || :
+	mntlist=$(mount | awk -v mnt="${mnt}" "${AWKCMD1}" |  sort -r)
+	dismount_list ${mntlist}
 
 	# We don't want to continue umounting /ref if had any failures so
 	# far.  Let's check for mounts, and try 3 more times with 30 second
 	# intervals
 
 	for verify in A B C; do
-		rem=$(mount | awk -v mnt="${mnt}" "${AWKCMD1}" | sort -r)
+		mntlist=$(mount | awk -v mnt="${mnt}" "${AWKCMD1}" | sort -r)
 		if [ -z "${rem}" ]; then
 		    break
 		else
 		    msg "Umounting not entirely successful.  Trying again in 30 seconds."
 		    sleep 30
-		    umount ${rem} || :
+		    dismount_list ${mntlist}
 		fi
 	done
 
-	mount | awk -v mnt="${mnt}" "${AWKCMD2}" |  sort -r | xargs umount || :
+	mntlist=$(mount | awk -v mnt="${mnt}" "${AWKCMD2}" |  sort -r)
+	dismount_list ${mntlist}
 
 	export STATUS=0
 
@@ -226,7 +228,7 @@ start_builders() {
 }
 
 stop_builders() {
-	local mnt
+	local mnt mntlist
 
 	# wait for the last running processes
 	cat ${MASTERMNT}/.p/var/run/*.pid 2>/dev/null | xargs pwait 2>/dev/null
@@ -238,7 +240,8 @@ stop_builders() {
 
 	cd /
 	mnt=${MASTERMNT%/ref}
-	mount | awk -v mnt="${mnt}" '{ if ($3 ~ mnt && $3 !~ /\/ref/) { print $3 }}' |  sort -r | xargs umount || :
+	mntlist=$(mount | awk -v mnt="${mnt}" '{ if ($3 ~ mnt && $3 !~ /\/ref/) { print $3 }}' |  sort -r)
+	dismount_list ${mntlist}
 
 	# No builders running, unset JOBS
 	JOBS=""
@@ -247,6 +250,13 @@ stop_builders() {
 dismount() {
 	[ $# -ne 1 ] && eargs mountpoint
 	umount ${1} 2>/dev/null || :
+}
+
+dismount_list() {
+	# arguments are expected to be reverse sorted already
+	for item in $@; do
+		dismount ${item}
+	done
 }
 
 create_slave() {
@@ -281,7 +291,7 @@ create_slave() {
 
 destroy_slave() {
 	[ $# -ne 1 ] && eargs job-number
-	local stragglers
+	local mntlist
 	local task="${1}"
 	local mnt="${MASTERMNT%/ref}/${task}"
 	local AWKCMD='{ if ($3 ~ mnt) { \
@@ -301,13 +311,14 @@ destroy_slave() {
 	# make sure cwd is not on mount
 	cd /
 
-	mount | awk -v mnt="${mnt}" "${AWKCMD}" | sort -r | xargs umount || :
+	mntlist=$(mount | awk -v mnt="${mnt}" "${AWKCMD}" | sort -r)
+	dismount_list ${mntlist}
 	# Possibly repeat dismount attempts in case some failed
 	# This also helps reap mounts on previous failed attempts
-	stragglers=$(mount | awk -v mnt="${mnt}" "${AWKCMD}" | sort -r)
-	if [ -n "${stagglers}" ]; then
+	mntlist=$(mount | awk -v mnt="${mnt}" "${AWKCMD}" | sort -r)
+	if [ -n "${mntlist}" ]; then
 	   sleep 3
-	   umount ${stagglers}
+	   dismount_list ${mntlist}
 	fi
 }
 
@@ -327,7 +338,7 @@ stop_build() {
 	local mnt
 
 	_my_path mnt
-	umount -f ${mnt}/.npkg 2>/dev/null || :
+	dismount ${mnt}/.npkg
 	rm -rf "${PACKAGES}/.npkg/${PKGNAME}"
 
 	buildlog_stop "${pkgname}" ${origin} ${build_failed}
