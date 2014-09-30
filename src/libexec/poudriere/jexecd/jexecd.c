@@ -111,6 +111,7 @@ client_read(struct client *cl)
 	void *cookie;
 	pid_t pid;
 
+	pid = -1;
 	nv = nvlist_recv(cl->fd);
 	if (nv == NULL)
 		err(EXIT_FAILURE, "nvlist_recv() failed");
@@ -133,6 +134,9 @@ client_read(struct client *cl)
 			argv[argc] = NULL;
 		}
 	}
+
+	if (argv == NULL)
+		goto err;
 
 	if ((pid = fork()) == 0) {
 		log_as(username);
@@ -159,7 +163,8 @@ client_read(struct client *cl)
 	close(fdin);
 	close(fdout);
 
-	cl->pid = pid;
+	if (pid != -1)
+		cl->pid = pid;
 	free(argv);
 	nvlist_destroy(nv);
 
@@ -236,9 +241,7 @@ serve(int fd) {
 				}
 			}
 			continue;
-		}
-
-		if (ke.filter == EVFILT_PROC) {
+		} else if (ke.filter == EVFILT_PROC) {
 			killpg(cl->pid, SIGKILL);
 			nv = nvlist_create(0);
 			nvlist_add_number(nv, "return", WEXITSTATUS(ke.data));

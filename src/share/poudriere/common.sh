@@ -1089,7 +1089,6 @@ rm() {
 	/bin/rm "$@"
 }
 
-
 use_options() {
 	[ $# -ne 2 ] && eargs use_options mnt optionsdir
 	local mnt=$1
@@ -1536,17 +1535,11 @@ sanity_check_pkgs() {
 }
 
 check_leftovers() {
-	[ $# -lt 1 ] && eargs check_leftovers mnt [stagedir]
+	[ $# -eq 1 ] || eargs check_leftovers mnt
 	local mnt=$1
-	local stagedir="$2"
 
-	{
-		if [ -z "${stagedir}" ]; then
-			mtree -X ${mnt}/.p/mtree.preinstexclude \
-			    -f ${mnt}/.p/mtree.preinst \
-			    -p ${mnt}
-		fi
-	} | while read l ; do
+	mtree -X ${mnt}/.p/mtree.preinstexclude -f ${mnt}/.p/mtree.preinst \
+	    -p ${mnt} | while read l; do
 		local changed read_again
 
 		changed=

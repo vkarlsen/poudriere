@@ -17,6 +17,14 @@ injail() {
 	local name
 
 	_my_name name
+	rexec -s ${MASTERMNT}/.p/${name}${JNETNAME:+-${JNETNAME}}.sock \
+		-u ${JUSER:-root} ${MAX_MEMORY_JEXEC} "$@"
+}
+
+injail_tty() {
+	local name
+
+	_my_name name
 	jexec -U ${JUSER:-root} ${name}${JNETNAME:+-${JNETNAME}} \
 	    ${MAX_MEMORY_JEXEC} "$@"
 }
@@ -34,11 +42,13 @@ jstart() {
 		host.hostname=${BUILDER_HOSTNAME-${name}} \
 		${network} \
 		allow.socket_af allow.raw_sockets allow.chflags allow.sysvipc
+	jexecd -j ${name} -d ${MASTERMNT}/.p/
 	jail -c persist name=${name}-n \
 		path=${MASTERMNT}${MY_JOBID+/../${MY_JOBID}} \
 		host.hostname=${BUILDER_HOSTNAME-${name}} \
 		${ipargs} \
 		allow.socket_af allow.raw_sockets allow.chflags allow.sysvipc
+	jexecd -j ${name}-n -d ${MASTERMNT}/.p/
 	if ! injail id ${PORTBUILD_USER} >/dev/null 2>&1 ; then
 		msg_n "Creating user/group ${PORTBUILD_USER}"
 		injail pw groupadd ${PORTBUILD_USER} -g 65532 || \
@@ -160,6 +170,10 @@ jail_start() {
 
 	msg "Mounting system devices for ${MASTERNAME}"
 	do_jail_mounts "${mnt}" "${tomnt}" ${arch}
+
+	# Create our data space
+	mkdir -p "${tomnt}/.p"
+	[ ${TMPFS_DATA} -eq 1 -o ${TMPFS_ALL} -eq 1 ] && mnt_tmpfs data "${tomnt}/.p"
 
 	PACKAGES=${POUDRIERE_DATA}/packages/${MASTERNAME}
 
@@ -351,10 +365,10 @@ stop_build() {
 	umount -f ${mnt}/.npkg 2>/dev/null || :
 	rm -rf "${PACKAGES}/.npkg/${PKGNAME}"
 
-	# 2 = HEADER+ps itself
-	if [ $(injail ps aux | wc -l) -ne 2 ]; then
+	# 3 = HEADER+jexecd+ps itself
+	if [ $(injail ps aux | wc -l) -ne 3 ]; then
 		msg_warn "Leftover processes:"
-		injail ps auxwwd | grep -v 'ps auxwwd'
+		injail ps auxwwd | egrep -v '(ps auxwwd|jexecd)'
 	fi
 
 	buildlog_stop "${pkgname}" ${origin} ${build_failed}

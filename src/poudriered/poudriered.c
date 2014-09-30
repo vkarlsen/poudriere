@@ -469,8 +469,10 @@ execute_cmd()
 		mkdirs(ucl_object_tostring(l), true);
 	logfd = open(l != NULL ? ucl_object_tostring(l) : "/tmp/poudriered.log",
 		O_CREAT|O_RDWR|O_TRUNC, 0644);
-	if (logfd == -1)
-		logfd = open("/dev/null", O_RDWR);
+	if (logfd == -1 && (logfd = open("/dev/null", O_RDWR)) == -1) {
+		warn("Unable to open /dev/null");
+		return;
+	}
 
 	o = ucl_object_find_key(running, "command");
 	a = ucl_object_find_key(running, "arguments");
@@ -677,10 +679,11 @@ client_new(int fd)
 	if (getpeereid(cl->fd, &cl->uid, &cl->gid) != 0)
 		err(EXIT_FAILURE, "getpeereid()");
 
-	if (-1 == (flags = fcntl(cl->fd, F_GETFL, 0)))
+	if ((flags = fcntl(cl->fd, F_GETFL, 0)) == -1)
 		flags = 0;
 
-	fcntl(cl->fd, F_SETFL, flags | O_NONBLOCK);
+	if ((fcntl(cl->fd, F_SETFL, flags | O_NONBLOCK)) == -1)
+		err(EXIT_FAILURE, "fcntl(O_NONBLOCK)");
 
 	return (cl);
 }

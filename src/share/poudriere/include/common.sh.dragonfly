@@ -15,6 +15,10 @@ injail()  {
 	chroot ${MASTERMNT}${MY_JOBID+/../${MY_JOBID}} $@
 }
 
+injail_tty()  {
+	chroot ${MASTERMNT}${MY_JOBID+/../${MY_JOBID}} $@
+}
+
 jstart () {
 	# NO OP on DragonFly
 }
