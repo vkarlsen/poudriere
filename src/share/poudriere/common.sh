@@ -759,8 +759,8 @@ show_build_summary() {
 Initially: %-${queue_width}d  \
 Built: ${COLOR_SUCCESS}%-${queue_width}d${COLOR_RESET}  \
 Failed: ${COLOR_FAIL}%-${queue_width}d${COLOR_RESET}  \
-Ignored: ${COLOR_IGNORE}%-${queue_width}d${COLOR_RESET}  \
-Skipped: ${COLOR_SKIP}%-${queue_width}d${COLOR_RESET}\n\
+Skipped: ${COLOR_SKIP}%-${queue_width}d${COLOR_RESET}  \
+Ignored: ${COLOR_IGNORE}%-${queue_width}d${COLOR_RESET}\n\
 Remaining: %-${queue_width}d\n"  \
 	"${buildtime}" ${nbq} ${nbb} ${nbf} ${nbs} ${nbi} ${nbtobuild}
 }
