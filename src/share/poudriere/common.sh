@@ -2395,7 +2395,7 @@ clean_pool() {
 	sh ${SCRIPTPREFIX}/clean.sh "${MASTERMNT}" "${pkgname}" "${clean_rdepends}" | sort -u | while read skipped_pkgname; do
 		cache_get_origin skipped_origin "${skipped_pkgname}"
 		badd ports.skipped "${skipped_origin} ${skipped_pkgname} ${pkgname}"
-		job_msg "${COLOR_SKIP}Skipping ${COLOR_PORT}${skipped_origin}${COLOR_SKIP}: Dependent port ${COLOR_PORT}${port}${COLOR_SKIP} ${clean_rdepends}"
+		job_msg "${COLOR_SKIP}Skipping ${COLOR_PORT}${skipped_origin}${COLOR_RESET}: Dependent port ${COLOR_PORT}${port}${COLOR_SKIP} ${clean_rdepends}"
 		run_hook pkgbuild RESULT=skipped \
 			SKIPPED_ORIGIN="${skipped_origin}" \
 			SKIPPED_PKGNAME="${skipped_pkgname}" \
