@@ -2395,7 +2395,7 @@ clean_pool() {
 	sh ${SCRIPTPREFIX}/clean.sh "${MASTERMNT}" "${pkgname}" "${clean_rdepends}" | sort -u | while read skipped_pkgname; do
 		cache_get_origin skipped_origin "${skipped_pkgname}"
 		badd ports.skipped "${skipped_origin} ${skipped_pkgname} ${pkgname}"
-		job_msg "${COLOR_SKIP}Skipping build of ${COLOR_PORT}${skipped_origin}${COLOR_SKIP}: Dependent port ${COLOR_PORT}${port}${COLOR_SKIP} ${clean_rdepends}"
+		job_msg "${COLOR_SKIP}Skipping ${COLOR_PORT}${skipped_origin}${COLOR_SKIP}: Dependent port ${COLOR_PORT}${port}${COLOR_SKIP} ${clean_rdepends}"
 		run_hook pkgbuild RESULT=skipped \
 			SKIPPED_ORIGIN="${skipped_origin}" \
 			SKIPPED_PKGNAME="${skipped_pkgname}" \
@@ -2426,6 +2426,7 @@ build_pkg() {
 	local clean_rdepends
 	local log
 	local ignore
+	local ignore_us
 	local errortype
 	local ret=0
 
@@ -2475,10 +2476,11 @@ build_pkg() {
 		badd ports.ignored "${port} ${PKGNAME} ${ignore}"
 		job_msg "Finished ${COLOR_PORT}${port}${COLOR_RESET}: ${COLOR_IGNORE}Ignored: ${ignore}"
 		clean_rdepends="ignored"
+		ignore_us=$(echo ${ignore} | sed -e 's| |~~|g')
 		run_hook pkgbuild RESULT=ignored \
 			ORIGIN="${port}" \
 			IGNORED_PKGNAME="${PKGNAME}" \
-			IGNORED_REASON="${ignore}"
+			IGNORED_REASON="${ignore_us}"
 	else
 		build_port ${portdir} || ret=$?
 		if [ ${ret} -ne 0 ]; then
