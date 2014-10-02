@@ -2398,7 +2398,7 @@ clean_pool() {
 		job_msg "${COLOR_SKIP}Skipping build of ${COLOR_PORT}${skipped_origin}${COLOR_SKIP}: Dependent port ${COLOR_PORT}${port}${COLOR_SKIP} ${clean_rdepends}"
 		run_hook pkgbuild RESULT=skipped \
 			SKIPPED_ORIGIN="${skipped_origin}" \
-			SKIPPED_PKGNAME="${skipped_pkgname}" "${port}" \
+			SKIPPED_PKGNAME="${skipped_pkgname}" \
 			ORIGIN="${port}"
 	done
 
