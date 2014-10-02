@@ -44,6 +44,7 @@ Parameters:
 Options:
     -k            -- when used with -d, only unregister the directory from
                      the ports tree list, but keep the files.
+    -n            -- Print only tree name (for use with -l)
     -p name       -- specifies the name of the portstree to work on . If not
                      specified, work on a portstree called "default".
     -M mountpoint -- mountpoint
@@ -60,11 +61,12 @@ FAKE=0
 UPDATE=0
 DELETE=0
 LIST=0
+NAMEONLY=0
 QUIET=0
 VERBOSE=0
 KEEP=0
 QOP="-q"
-while getopts "cudklp:M:m:vq" FLAG; do
+while getopts "cudklp:nM:m:vq" FLAG; do
 	case "${FLAG}" in
 		B)
 			# Masked on DragonFly
@@ -79,6 +81,9 @@ while getopts "cudklp:M:m:vq" FLAG; do
 			;;
 		u)
 			UPDATE=1
+			;;
+		n)
+			NAMEONLY=1
 			;;
 		p)
 			PTNAME=${OPTARG}
@@ -132,9 +137,17 @@ esac
 if [ ${LIST} -eq 1 ]; then
 	format='%%-%ds %%-%ds %%-%ds %%s\n'
 	display_setup "${format}" 4 "-d"
-	display_add "PORTSTREE" "LAST-UPDATED" "METHOD" "PATH"
+	if [ ${NAMEONLY} -eq 0 ]; then
+		display_add "PORTSTREE" "LAST-UPDATED" "METHOD" "PATH"
+	else
+		display_add "PORTSTREE"
+	fi
 	while read ptname ptmethod pthack ptpath; do
-		display_add ${ptname} ${pthack} ${ptmethod} ${ptpath}
+		if [ ${NAMEONLY} -eq 0 ]; then
+			display_add ${ptname} ${pthack} ${ptmethod} ${ptpath}
+		else
+			display_add ${ptname}
+		fi
 	done <<- EOF
 	$(porttree_list)
 	EOF
