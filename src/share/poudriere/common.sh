@@ -806,8 +806,8 @@ siginfo_handler() {
 			colorize_job_id job_id_color "${j}"
 
 			# Must put colors in format
-			format_origin_phase="\t[${job_id_color}%s${COLOR_RESET}]: ${COLOR_PORT}%-32s ${COLOR_PHASE}%-15s${COLOR_RESET} (%s)\n"
-			format_phase="\t[${job_id_color}%s${COLOR_RESET}]: %-32s ${COLOR_PHASE}%-15s${COLOR_RESET}\n"
+			format_origin_phase="  [${job_id_color}%s${COLOR_RESET}] ${COLOR_PORT}%-45s ${COLOR_PHASE}%-15s${COLOR_RESET} (%s)\n"
+			format_phase="  [${job_id_color}%s${COLOR_RESET}] %-45s ${COLOR_PHASE}%-15s${COLOR_RESET}\n"
 
 			if [ -n "${pkgname}" ]; then
 				elapsed=$((${now} - ${started}))
