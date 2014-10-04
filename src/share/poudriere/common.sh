@@ -175,7 +175,7 @@ job_msg() {
 		now=$(date +%s)
 		calculate_duration elapsed "$((${now} - ${TIME_START_JOB}))"
 		msg \
-		    "[${COLOR_JOBID}${MY_JOBID}${COLOR_RESET}][${elapsed}] $1" \
+		    "[${COLOR_JOBID}${MY_JOBID}${COLOR_RESET}] ${elapsed} $1" \
 		    >&5
 	elif [ ${OUTPUT_REDIRECTED:-0} -eq 1 ]; then
 		# Send to true stdout (not any build log)
@@ -2447,7 +2447,7 @@ build_pkg() {
 	NO_ELAPSED_IN_MSG=1
 	colorize_job_id COLOR_JOBID "${MY_JOBID}"
 
-	job_msg "Starting ${COLOR_PORT}${port}${COLOR_RESET} build"
+	job_msg "Starting ${COLOR_PORT}${port}${COLOR_RESET}"
 	bset_job_status "starting" "${port}"
 	create_slave ${MY_JOBID}
 
