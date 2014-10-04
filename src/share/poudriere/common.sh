@@ -42,7 +42,7 @@ testport_run() {
 
 # Return true if in a bulk or other jail run that needs to shutdown the jail
 was_a_jail_run() {
-	was_a_bulk_run ||  [ "${0##*/}" = "pkgclean.sh" ]
+	was_a_bulk_run ||  [ "${0##*/}" = "pkgclean.sh" -o "${0##*/}" = "combo.sh" ]
 }
 # Return true if output via msg() should show elapsed time
 should_show_elapsed() {
