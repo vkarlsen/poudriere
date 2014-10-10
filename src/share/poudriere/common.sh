@@ -190,6 +190,11 @@ job_msg_verbose() {
 	job_msg "$@"
 }
 
+job_msg_debug() {
+	[ ${VERBOSE} -gt 1 ] || return 0
+	job_msg "${COLOR_DEBUG}Debug: $@"
+}
+
 check_jobs() {
 	case ${PARALLEL_JOBS} in
 	''|*[!0-9]*)
@@ -1631,7 +1636,7 @@ gather_distfiles() {
 	sub=$(injail make -C ${portdir} -VDIST_SUBDIR)
 	dists=$(injail make -C ${portdir} -V_DISTFILES -V_PATCHFILES)
 	specials=$(injail make -C ${portdir} -V_DEPEND_SPECIALS)
-	#job_msg_verbose "Status   ${COLOR_PORT}${portdir##/usr/ports/}${COLOR_RESET}: distfiles ${from} -> ${to}"
+	job_msg_debug "Status   ${COLOR_PORT}${portdir##/usr/ports/}${COLOR_RESET}: distfiles ${from} -> ${to}"
 	for d in ${dists}; do
 		[ -f ${from}/${sub}/${d} ] || continue
 		tosubd=${to}/${sub}/${d}
