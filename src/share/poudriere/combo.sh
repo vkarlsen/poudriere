@@ -173,7 +173,7 @@ solo_dep_check() {
 	SKIPSANITY=1
 	jail_start ${JAILNAME} ${PTNAME} ${SETNAME}
 	prepare_ports
-	cleanup
+	jail_stop
 }
 
 delete_old_logs() {
