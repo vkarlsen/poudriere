@@ -247,9 +247,7 @@ unset NO_ELAPSED_IN_MSG
 
 if [ ${ret} -ne 0 ]; then
 	if [ ${ret} -eq 2 ]; then
-		failed_phase=$(awk -f ${AWKPREFIX}/processonelog2.awk \
-			${log}/logs/${PKGNAME}.log \
-			2> /dev/null)
+		failed_phase=fail
 	else
 		failed_status=$(bget status)
 		failed_phase=${failed_status%%:*}
@@ -263,10 +261,8 @@ if [ ${ret} -ne 0 ]; then
 		PHASE=${failed_phase}
 
 	ln -s ../${PKGNAME}.log ${log}/logs/errors/${PKGNAME}.log
-	errortype=$(/bin/sh ${SCRIPTPREFIX}/processonelog.sh \
-		${log}/logs/errors/${PKGNAME}.log \
-		2> /dev/null)
-	badd ports.failed "${ORIGIN} ${PKGNAME} ${failed_phase} ${errortype}"
+	errortype=failed
+	badd ports.failed "${ORIGIN} ${PKGNAME} ${failed_phase} failed"
 	update_stats || :
 
 	if [ ${INTERACTIVE_MODE} -eq 0 ]; then

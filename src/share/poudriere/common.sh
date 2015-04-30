@@ -2492,9 +2492,7 @@ build_pkg() {
 			build_failed=1
 			# ret=2 is a test failure
 			if [ ${ret} -eq 2 ]; then
-				failed_phase=$(awk -f ${AWKPREFIX}/processonelog2.awk \
-					${log}/logs/${PKGNAME}.log \
-					2> /dev/null)
+				failed_phase=fail
 			else
 				_bget failed_status ${MY_JOBID} status
 				failed_phase=${failed_status%%:*}
@@ -2517,10 +2515,7 @@ build_pkg() {
 		else
 			# Symlink the buildlog into errors/
 			ln -s ../${PKGNAME}.log ${log}/logs/errors/${PKGNAME}.log
-			errortype=$(/bin/sh ${SCRIPTPREFIX}/processonelog.sh \
-				${log}/logs/errors/${PKGNAME}.log \
-				2> /dev/null)
-			badd ports.failed "${port} ${PKGNAME} ${failed_phase} ${errortype}"
+			badd ports.failed "${port} ${PKGNAME} ${failed_phase} failed"
 			echo "${port} ${failed_phase}" >> ${log}/last_run.failed
 			job_msg "Finished ${COLOR_PORT}${port}${COLOR_RESET}: ${COLOR_FAIL}Failed: ${COLOR_PHASE}${failed_phase}"
 			run_hook pkgbuild RESULT=failed \
