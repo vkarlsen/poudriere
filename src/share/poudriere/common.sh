@@ -690,7 +690,8 @@ exit_handler() {
 	trap '' SIGINT
 
 	if was_a_bulk_run; then
-		bset status "idle:"	# make sure web ends to stop polling
+		bset status "done:"	# make sure web ends to stop polling
+		build_json
 		log_stop
 		stop_html_json
 	fi
