@@ -320,7 +320,7 @@ if [ ${INTERACTIVE_MODE} -gt 0 ]; then
 	if [ $INTERACTIVE_MODE -eq 1 ]; then
 		msg "Entering interactive test mode. Type 'exit' when done."
 		injail env -i TERM=${SAVED_TERM} \
-			PACKAGESITE="file:///packages" /bin/sh
+			PACKAGESITE="file:///packages" /bin/tcsh
 		if [ -n "${failed_phase}" ]; then
 			bset_job_status "failed/${failed_phase}" "${ORIGIN}"
 			msg_error "Build failed in phase: ${COLOR_PHASE}${failed_phase}${COLOR_RESET}"
@@ -330,7 +330,7 @@ if [ ${INTERACTIVE_MODE} -gt 0 ]; then
 		fi
 	else
 		msg "Leaving jail ${MASTERNAME} running, mounted at ${MASTERMNT} for interactive run testing"
-		msg "To enter jail: chroot ${MASTERMNT} /bin/sh"
+		msg "To enter jail: chroot ${MASTERMNT} /bin/tcsh"
 		msg "To stop jail: 'exit', 'poudriere combo -C -j ${JAILNAME} -p ${PTNAME}'"
 		exit 0
 	fi
