@@ -119,6 +119,7 @@ jail_start() {
 	PORTSDIR=/usr/ports
 	PACKAGES=/packages
 	DISTDIR=/distfiles
+	PKG_CREATE=/usr/local/sbin/pkg-static -v
 	EOF
 
 	echo " done"
