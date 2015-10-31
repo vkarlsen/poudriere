@@ -2583,9 +2583,8 @@ list_deps() {
 	mangle_stderr "${COLOR_WARN}WARNING" \
 		"(${COLOR_PORT}$1${COLOR_RESET})${COLOR_WARN}" \
 		"${COLOR_RESET}" \
-		injail make -C ${dir} $makeargs | \
-		sed -e "s,[[:graph:]]*/usr/ports/,,g" \
-		-e "s,:[[:graph:]]*,,g" -e '/^$/d' | tr ' ' '\n' | \
+		injail make -C ${dir} $makeargs | tr ' ' '\n' | \
+		awk -F: '{ gsub(/\/usr\/ports\//,"", $2); print $2 }' | \
 		sort -u || err 1 "Makefile broken: $1"
 }
 
@@ -2866,7 +2865,10 @@ delete_old_pkg() {
 			raw_deps=$(injail make -C /usr/ports/${o} -V${td}_DEPENDS)
 			for d in ${raw_deps}; do
 				key=${d%:*}
-				dpath=${d#*:/usr/ports/}
+				dpath=${d#*:}
+				case "${dpath}" in
+				/usr/ports/*) dpath=${dpath#/usr/ports/} ;;
+				esac
 				case ${td} in
 				LIB)
 					[ -n "${liblist}" ] || liblist=$(injail ldconfig -r | awk '$1 ~ /:-l/ { gsub(/.*-l/, "", $1); printf("%s ",$1) } END { printf("\n") }')
