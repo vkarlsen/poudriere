@@ -49,7 +49,7 @@ build_and_install_world() {
 	[ $# -ne 1 ] && eargs quick
 	local JLOGBASE=${POUDRIERE_DATA}/jailbuild/${JAILNAME}
 	local factor=${PARALLEL_JOBS}
-	local options="-DNO_GAMES -DNOPROFILE -DNO_ALTBINUTILS -DNO_ALTCOMPILER"
+	local options="-DNOPROFILE -DNO_ALTBINUTILS -DNO_ALTCOMPILER"
 	local directive
 	mkdir -p ${JLOGBASE}
 
